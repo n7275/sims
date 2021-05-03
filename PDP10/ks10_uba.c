@@ -57,8 +57,13 @@ uba_read(t_addr addr, int ctl, uint64 *data, int access)
     int     i;
     int     ubm = uba_device[ctl];
 
+    if (ctl == 0 && addr == 0100000) {
+        *data = 0;
+        return 0;
+    }
+
     if (ubm == -1) {
-        uba_status[ubm] |= UBST_TIM | UBST_NED;
+        sim_debug(DEBUG_EXP, &cpu_dev, "No UBA adaptor %02o %08o\n", ctl, addr);
         return 1;
     }
 
@@ -68,7 +73,22 @@ uba_read(t_addr addr, int ctl, uint64 *data, int access)
            *data = (uint64)uba_map[ubm][addr & 077];
            return 0;
        } else if ((addr & 077) == 0) {
+           int     pih, pil;
            *data = (uint64)uba_status[ubm];
+           pih = 0200 >> ((uba_status[ubm] >> 3) & 07);
+           pil = 0200 >> (uba_status[ubm] & 07);
+           for(i = 0; (dptr = sim_devices[i]) != NULL; i++) {
+               DIB *dibp = (DIB *) dptr->ctxt;
+               if (dibp == NULL)
+                   continue;
+               /* If device is pending on this level save */
+               if (dibp->uba_ctl == ctl) {
+                  if ((dibp->uba_irq_pend & pil) != 0)
+                      *data |= UBST_INTL;
+                  if ((dibp->uba_irq_pend & pih) != 0)
+                      *data |= UBST_INTH;
+               }
+           }
            return 0;
        } else if ((addr & 077) == 1) {
            *data = 0;
@@ -81,16 +101,17 @@ uba_read(t_addr addr, int ctl, uint64 *data, int access)
         DIB *dibp = (DIB *) dptr->ctxt;
         if (dibp == NULL)
             continue;
-        if (ctl == dibp->uba_ctl && dibp->uba_addr == (addr & (~dibp->uba_mask))) {
+        if (ctl == dibp->uba_ctl && 
+            dibp->uba_addr == (addr & (~dibp->uba_mask))) {
             uint16 buf;
-            int r = dibp->rd_io(addr, &buf, access);
-//            if (access == BYTE && (addr & 1) != 0)
- //               buf >>= 8;
+            int r = dibp->rd_io(dptr, addr, &buf, access);
             *data = (uint64)buf;
+            if (r)
+                break;
             return r;
         }
     }
-    sim_debug(DEBUG_EXP, &cpu_dev, "No UBA device %08o\n", addr);
+    sim_debug(DEBUG_EXP, &cpu_dev, "No UBA device  %02o %08o\n", ctl, addr);
     uba_status[ubm] |= UBST_TIM | UBST_NED;
     return 1;
 }
@@ -102,8 +123,11 @@ uba_write(t_addr addr, int ctl, uint64 data, int access)
     int     i;
     int     ubm = uba_device[ctl];
 
+    if (ctl == 0 && addr == 0100000) {
+        return 1;
+    }
     if (ubm == -1) {
-        uba_status[ubm] |= UBST_TIM | UBST_NED;
+        sim_debug(DEBUG_EXP, &cpu_dev, "No UBA adaptor %02o %08o %012llo\n", ctl, addr, data);
         return 1;
     }
 
@@ -120,12 +144,13 @@ uba_write(t_addr addr, int ctl, uint64 data, int access)
            uint32 map = (uint32)(data & 03777) << 9;
            map |= (uint32)(data & 0740000) << 13;
            uba_map[ubm][addr & 077] = map;
-           sim_debug(DEBUG_EXP, &cpu_dev, "Wr MAP %02o %012llo %06o\n\r", addr & 077, data, map);
+           sim_debug(DEBUG_EXP, &cpu_dev, "Wr MAP %02o %012llo %06o\n\r", 
+                 addr & 077, data, map);
            return 0;
        } else if ((addr & 077) == 0) {
            uba_status[ubm] &= (uint32)(074000 ^ data) | 0746000;
-           uba_status[ubm] |= (uint32)(0277 & data);
            if (data & 0100) {
+               uba_status[ubm] = 0;
                for(i = 0; (dptr = sim_devices[i]) != NULL; i++) {
                    DIB *dibp = (DIB *) dptr->ctxt;
                    if (dibp == NULL)
@@ -135,8 +160,9 @@ uba_write(t_addr addr, int ctl, uint64 data, int access)
                    if (ctl == dibp->uba_ctl)
                       dibp->uba_irq_pend = 0;
                }
-               clr_interrupt(ctl);
+               clr_interrupt(ctl<<2);
            }
+           uba_status[ubm] |= (uint32)(0277 & data);
            return 0;
        } else if ((addr & 077) == 1) {
            return 0;
@@ -151,10 +177,13 @@ uba_write(t_addr addr, int ctl, uint64 data, int access)
             continue;
         if (ctl == dibp->uba_ctl && dibp->uba_addr == (addr & (~dibp->uba_mask))) {
             uint16 buf = (uint16)(data & 0177777);
-            return dibp->wr_io(addr, buf, access);
+            int r = dibp->wr_io(dptr, addr, buf, access);
+            if (r)
+                break;
+            return r;
         }
     }
-    sim_debug(DEBUG_EXP, &cpu_dev, "No UBA device write %08o %012llo\n", addr, data);
+    sim_debug(DEBUG_EXP, &cpu_dev, "No UBA device write %02o %08o %012llo\n", ctl, addr, data);
     uba_status[ubm] |= UBST_TIM | UBST_NED;
     return 1;
 }
@@ -179,7 +208,7 @@ int
 uba_write_npr(t_addr addr, uint16 ctl, uint64 data)
 {
     int ubm = uba_device[ctl];
-t_addr oaddr = addr;
+    t_addr oaddr = addr;
     uint32  map = uba_map[ubm][(077) & (addr >> 11)];
     if ((addr & 0400000) != 0)
         return 0;
@@ -232,29 +261,62 @@ uba_set_irq(DIB *dibp)
     /* Figure out what channel device should IRQ on */
     if (dibp->uba_br > 5) {
        pi = uba_status[ubm] >> 3;
-       uba_status[ubm] |= UBST_INTH;
     } else {
        pi = uba_status[ubm];
-       uba_status[ubm] |= UBST_INTL;
     }
     /* Save in device temp the irq value */
     dibp->uba_irq_pend = 0200 >> (pi & 07);
-    set_interrupt(dibp->uba_ctl << 2, pi);
+    set_interrupt(dibp->uba_ctl<<2, pi);
 }
 
+void
+uba_clr_irq(DIB *idev)
+{
+    DEVICE *dptr;
+    int ubm = uba_device[idev->uba_ctl];
+    int pi;
+    int i;
+    int     high = 0;
+    
+    if (ubm < 0)
+       return;
+    /* Figure out what channel device should IRQ on */
+    if (idev->uba_br > 5) {
+       pi = uba_status[ubm] >> 3;
+    } else {
+       pi = uba_status[ubm];
+    }
+    /* Save in device temp the irq value */
+    idev->uba_irq_pend = 0;
+    for(i = 0; (dptr = sim_devices[i]) != NULL; i++) {
+        DIB *dibp = (DIB *) dptr->ctxt;
+        if (dibp == NULL)
+            continue;
+        /* If device is pending on this level save */
+        if (dibp->uba_ctl == idev->uba_ctl &&
+                dibp->uba_irq_pend != 0) {
+            /* At least one, no need to continue */
+            return;
+        }
+    }
+    /* Nothing, so clear it */
+    clr_interrupt(idev->uba_ctl<<2);
+}
+
+
 t_addr
-uba_get_vect(t_addr addr, int lvl)
+uba_get_vect(t_addr addr, int lvl, int *dev, int *new_lvl)
 {
     DEVICE *dptr;
     DIB    *idev = NULL;
     uint64  buffer;
     uint16  ivect;
     int     i;
-    int     high = 0;
     int     ctl = 17;
     int     pi;
     int     ubm;
 
+    *dev = 0;   /* Adaptor 0 is special */
     /* Look for device */
     for(i = 0; (dptr = sim_devices[i]) != NULL; i++) {
         DIB *dibp = (DIB *) dptr->ctxt;
@@ -271,42 +333,42 @@ uba_get_vect(t_addr addr, int lvl)
     }
     /* Should have a device */
     if (idev != NULL) {
+        *new_lvl = 0;
+        *dev = idev->uba_ctl;
         /* Figure out what pi channel this will interrupt on */
         ubm = uba_device[idev->uba_ctl];
-        if (idev->uba_br > 5) {
-           pi = (uba_status[ubm] >> 3) & 07;
-           high = 1;
-           uba_status[ubm] &= ~UBST_INTH;
-        } else {
-           pi = uba_status[ubm] & 07;
-           uba_status[ubm] &= ~UBST_INTL;
-        }
         /* Clear interrupts */
         idev->uba_irq_pend = 0; 
+        /* Fetch vector */
+        if (Mem_read_word(0100 | idev->uba_ctl, &buffer, 1))
+           return addr;
+        idev->uba_irq_pend = 0;
+        ivect = idev->uba_vect;
+        if (idev->irqv != NULL)
+            ivect = (idev->irqv)(idev);
+        addr = (buffer + (ivect >> 2)) & RMASK;
         /* Any other devices waiting on this PI channel? */
-        clr_interrupt(idev->uba_ctl << 2);
-        for(i = 0; (dptr = sim_devices[i]) != NULL; i++) {
+        for(pi = i = 0; (dptr = sim_devices[i]) != NULL; i++) {
             DIB *dibp = (DIB *) dptr->ctxt;
             if (dibp == NULL)
                 continue;
             /* If device is pending on this level save */
             if (dibp->uba_ctl == idev->uba_ctl &&
-                    (dibp->uba_irq_pend & lvl) != 0) {
-                set_interrupt(idev->uba_ctl << 2, pi);
-                uba_status[ubm] |= UBST_INTL << high;
+                    dibp->uba_irq_pend != 0) {
                 /* At least one, no need to continue */
-                break;
+                *new_lvl |= dibp->uba_irq_pend;
             }
         }
-        /* Fetch vector */
-        if (Mem_read_word(0100 | idev->uba_ctl, &buffer, 1))
-           return addr;
-        ivect = idev->uba_vect;
-        if (idev->irqv != NULL)
-            ivect = (idev->irqv)(idev);
-        addr = (buffer & RMASK) + (idev->uba_vect >> 2);
     }
     return addr;
+}
+
+void
+uba_set_parity(uint16 ctl)
+{
+    int ubm = uba_device[ctl];
+    if (ubm >= 0)
+        uba_status[ubm] |= UBST_PAR;
 }
 
 t_stat
@@ -317,8 +379,6 @@ uba_set_addr(UNIT *uptr, int32 val, CONST char *cptr, void *desc)
     t_value  newaddr;
     t_stat   r;
 
-    if (dibp == NULL)
-        return SCPE_IERR;
     if (cptr == NULL)
         return SCPE_ARG;
     if (uptr == NULL)
@@ -358,8 +418,6 @@ uba_set_br(UNIT *uptr, int32 val, CONST char *cptr, void *desc)
     t_value  br;
     t_stat   r;
 
-    if (dibp == NULL)
-        return SCPE_IERR;
     if (cptr == NULL)
         return SCPE_ARG;
     if (uptr == NULL)
@@ -402,8 +460,6 @@ uba_set_vect(UNIT *uptr, int32 val, CONST char *cptr, void *desc)
     t_value  vect;
     t_stat   r;
 
-    if (dibp == NULL)
-        return SCPE_IERR;
     if (cptr == NULL)
         return SCPE_ARG;
     if (uptr == NULL)
@@ -444,8 +500,6 @@ uba_set_ctl(UNIT *uptr, int32 val, CONST char *cptr, void *desc)
     t_value  ctl;
     t_stat   r;
 
-    if (dibp == NULL)
-        return SCPE_IERR;
     if (cptr == NULL)
         return SCPE_ARG;
     if (uptr == NULL)
@@ -463,7 +517,7 @@ uba_set_ctl(UNIT *uptr, int32 val, CONST char *cptr, void *desc)
     if (r != SCPE_OK)
         return r;
 
-    if (ctl != 1 || ctl != 3)
+    if (ctl != 1 && ctl != 3)
        return SCPE_ARG;
     dibp->uba_ctl = (uint16)ctl;
     return SCPE_OK;

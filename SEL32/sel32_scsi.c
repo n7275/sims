@@ -32,7 +32,7 @@
 
 /* useful conversions */
 /* Fill STAR value from cyl, trk, sec data */
-#define CHS2STAR(c,h,s)	        (((c<<16) & LMASK)|((h<<8) & 0xff00)|(s & 0xff))
+#define CHS2STAR(c,h,s)         (((c<<16) & LMASK)|((h<<8) & 0xff00)|(s & 0xff))
 /* convert STAR value to number of sectors */
 #define STAR2SEC(star,spt,spc)  ((star&0xff)+(((star>>8)&0xff)*spt)+((star>>16)*spc))
 /* convert STAR value to number of heads or tracks */
@@ -97,9 +97,9 @@ bits 24-31 - FHD head count (number of heads on FHD or number head on FHD option
 
 /* track label / sector label definations */
 /*
-    short lcyl;	        cylinder
-    char ltkn;			track
-    char lid;			sector id
+    short lcyl;         cylinder
+    char ltkn;          track
+    char lid;           sector id
     char lflg1;         track/sector status flags
         bit 0           good
             1           alternate
@@ -113,12 +113,12 @@ bits 24-31 - FHD head count (number of heads on FHD or number head on FHD option
     short lspar2;
     short ldef1;
     int ldeallp;        DMAP block number trk0
-    int lumapp;			UMAP block number sec1
+    int lumapp;         UMAP block number sec1
     short ladef3;
     short laltcyl;
     char lalttk;        sectors per track
     char ldscnt;        number of heads
-    char ldatrflg;		device attributes
+    char ldatrflg;      device attributes
         bit 0           n/u
             1           disk is mhd
             2           n/u
@@ -283,12 +283,13 @@ scsi_type[] =
     {NULL, 0}
 };
 
-uint16  scsi_preio(UNIT *uptr, uint16 chan);
-uint16  scsi_startcmd(UNIT *uptr, uint16 chan, uint8 cmd);
-uint16  scsi_haltio(UNIT *uptr);
+t_stat  scsi_preio(UNIT *uptr, uint16 chan);
+t_stat  scsi_startcmd(UNIT *uptr, uint16 chan, uint8 cmd);
+t_stat  scsi_haltio(UNIT *uptr);
 t_stat  scsi_srv(UNIT *);
 t_stat  scsi_boot(int32 unitnum, DEVICE *);
 void    scsi_ini(UNIT *, t_bool);
+t_stat  scsi_rschnlio(UNIT *uptr);
 t_stat  scsi_reset(DEVICE *);
 t_stat  scsi_attach(UNIT *, CONST char *);
 t_stat  scsi_detach(UNIT *);
@@ -319,17 +320,15 @@ UNIT    sba_unit[] = {
     {UDATA(&scsi_srv, UNIT_SCSI|SET_TYPE(0), 0), 0, UNIT_ADDR(0x7608)},  /* 1 */
 };
 
-//DIB sba_dib = {scsi_preio, scsi_startcmd, NULL, NULL, NULL, scsi_ini, sba_unit, sba_chp, NUM_UNITS_SCSI, 0x0f, 0x0400, 0, 0, 0};
-
 DIB     sba_dib = {
-    scsi_preio,     /* uint16 (*pre_io)(UNIT *uptr, uint16 chan)*/  /* Pre Start I/O */
-    scsi_startcmd,  /* uint16 (*start_cmd)(UNIT *uptr, uint16 chan, uint8 cmd)*/ /* Start command */
-    NULL,           /* uint16 (*halt_io)(UNIT *uptr) */         /* Halt I/O */
-    NULL,           /* uint16 (*stop_io)(UNIT *uptr) */         /* Stop I/O */
-    NULL,           /* uint16 (*test_io)(UNIT *uptr) */         /* Test I/O */
-    NULL,           /* uint16 (*rsctl_io)(UNIT *uptr) */        /* Reset Controller */
-    NULL,           /* uint16 (*rschnl_io)(UNIT *uptr) */       /* Reset Channel */
-    NULL,           /* uint16 (*iocl_io)(CHANP *chp, int32 tic_ok)) */  /* Process IOCL */
+    scsi_preio,     /* t_stat (*pre_io)(UNIT *uptr, uint16 chan)*/  /* Pre Start I/O */
+    scsi_startcmd,  /* t_stat (*start_cmd)(UNIT *uptr, uint16 chan, uint8 cmd)*/ /* Start command */
+    NULL,           /* t_stat (*halt_io)(UNIT *uptr) */         /* Halt I/O */
+    NULL,           /* t_stat (*stop_io)(UNIT *uptr) */         /* Stop I/O */
+    NULL,           /* t_stat (*test_io)(UNIT *uptr) */         /* Test I/O */
+    NULL,           /* t_stat (*rsctl_io)(UNIT *uptr) */        /* Reset Controller */
+    scsi_rschnlio,  /* t_stat (*rschnl_io)(UNIT *uptr) */       /* Reset Channel */
+    NULL,           /* t_stat (*iocl_io)(CHANP *chp, int32 tic_ok)) */  /* Process IOCL */
     scsi_ini,       /* void  (*dev_ini)(UNIT *, t_bool) */      /* init function */
     sba_unit,       /* UNIT* units */                           /* Pointer to units structure */
     sba_chp,        /* CHANP* chan_prg */                       /* Pointer to chan_prg structure */
@@ -362,17 +361,18 @@ UNIT    sbb_unit[] = {
     {UDATA(&scsi_srv, UNIT_SCSI|SET_TYPE(0), 0), 0, UNIT_ADDR(0x7648)},  /* 1 */
 };
 
-//DIB sdb_dib = {scsi_preio, scsi_startcmd, NULL, NULL, NULL, scsi_ini, sdb_unit, sdb_chp, NUM_UNITS_SCSI, 0x0f, 0x0c00, 0, 0, 0};
+//DIB sdb_dib = {scsi_preio, scsi_startcmd, NULL, NULL, NULL,
+//scsi_ini, sdb_unit, sdb_chp, NUM_UNITS_SCSI, 0x0f, 0x0c00, 0, 0, 0};
 
 DIB     sbb_dib = {
-    scsi_preio,     /* uint16 (*pre_io)(UNIT *uptr, uint16 chan)*/  /* Pre Start I/O */
-    scsi_startcmd,  /* uint16 (*start_cmd)(UNIT *uptr, uint16 chan, uint8 cmd)*/ /* Start command */
-    NULL,           /* uint16 (*halt_io)(UNIT *uptr) */         /* Halt I/O */
-    NULL,           /* uint16 (*stop_io)(UNIT *uptr) */         /* Stop I/O */
-    NULL,           /* uint16 (*test_io)(UNIT *uptr) */         /* Test I/O */
-    NULL,           /* uint16 (*rsctl_io)(UNIT *uptr) */        /* Reset Controller */
-    NULL,           /* uint16 (*rschnl_io)(UNIT *uptr) */       /* Reset Channel */
-    NULL,           /* uint16 (*iocl_io)(CHANP *chp, int32 tic_ok)) */  /* Process IOCL */
+    scsi_preio,     /* t_stat (*pre_io)(UNIT *uptr, uint16 chan)*/  /* Pre Start I/O */
+    scsi_startcmd,  /* t_stat (*start_cmd)(UNIT *uptr, uint16 chan, uint8 cmd)*/ /* Start command */
+    NULL,           /* t_stat (*halt_io)(UNIT *uptr) */         /* Halt I/O */
+    NULL,           /* t_stat (*stop_io)(UNIT *uptr) */         /* Stop I/O */
+    NULL,           /* t_stat (*test_io)(UNIT *uptr) */         /* Test I/O */
+    NULL,           /* t_stat (*rsctl_io)(UNIT *uptr) */        /* Reset Controller */
+    scsi_rschnlio,  /* t_stat (*rschnl_io)(UNIT *uptr) */       /* Reset Channel */
+    NULL,           /* t_stat (*iocl_io)(CHANP *chp, int32 tic_ok)) */  /* Process IOCL */
     scsi_ini,       /* void  (*dev_ini)(UNIT *, t_bool) */      /* init function */
     sbb_unit,       /* UNIT* units */                           /* Pointer to units structure */
     sbb_chp,        /* CHANP* chan_prg */                       /* Pointer to chan_prg structure */
@@ -408,7 +408,7 @@ uint32 scsisec2star(uint32 daddr, int type)
 }
 
 /* start a disk operation */
-uint16 scsi_preio(UNIT *uptr, uint16 chan)
+t_stat scsi_preio(UNIT *uptr, uint16 chan)
 {
     DEVICE      *dptr = get_dev(uptr);
     uint16      chsa = GET_UADDR(uptr->CMD);
@@ -422,7 +422,7 @@ uint16 scsi_preio(UNIT *uptr, uint16 chan)
     return 0;                                   /* good to go */
 }
 
-uint16 scsi_startcmd(UNIT *uptr, uint16 chan,  uint8 cmd)
+t_stat scsi_startcmd(UNIT *uptr, uint16 chan,  uint8 cmd)
 {
     uint16      chsa = GET_UADDR(uptr->CMD);
     DEVICE      *dptr = get_dev(uptr);
@@ -451,9 +451,6 @@ uint16 scsi_startcmd(UNIT *uptr, uint16 chan,  uint8 cmd)
     switch (cmd) {
 
     case DSK_INCH:                              /* INCH 0x00 */
-#ifdef DO_DYNAMIC_DEBUG
-//  cpu_dev.dctrl |= (DEBUG_INST | DEBUG_CMD | DEBUG_EXP | DEBUG_IRQ | DEBUG_XIO);
-#endif
         sim_debug(DEBUG_CMD, dptr,
             "scsi_startcmd starting INCH %06x cmd, chsa %04x MemBuf %08x cnt %04x\n",
             uptr->u4, chsa, chp->ccw_addr, chp->ccw_count);
@@ -481,7 +478,6 @@ uint16 scsi_startcmd(UNIT *uptr, uint16 chan,  uint8 cmd)
         uptr->CMD |= cmd;                       /* save cmd */
         sim_debug(DEBUG_CMD, dptr,
             "scsi_startcmd starting disk seek r/w cmd %02x chsa %04x\n", cmd, chsa);
-//      sim_activate(uptr, 20);                 /* start things off */
         sim_activate(uptr, 100);                /* start things off */
         return 0;
         break;
@@ -491,7 +487,6 @@ uint16 scsi_startcmd(UNIT *uptr, uint16 chan,  uint8 cmd)
         cmd, chsa, uptr->SNS);
     if (uptr->SNS & 0xff)                       /* any other cmd is error */
         return SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK;
-//  sim_activate(uptr, 20);                     /* start things off */
     sim_activate(uptr, 100);                    /* start things off */
     return SNS_CHNEND|SNS_DEVEND;
 }
@@ -637,7 +632,6 @@ t_stat scsi_srv(UNIT *uptr)
         chan_write_byte(chsa, &ch);
 
         /* bytes 4 - mode reg, byte 0 of SNS */
-//      ch = (uptr->SNS >> 24) & 0xff;          /* return the sense data */
         /* skip the TCMD bit */
         ch = (uptr->SNS >> 24) & 0xfe;          /* return the sense data */
         sim_debug(DEBUG_DETAIL, dptr, "scsi_srv sense unit=%02x 1 %02x\n",
@@ -681,7 +675,6 @@ t_stat scsi_srv(UNIT *uptr)
                 sim_debug(DEBUG_CMD, dptr, "scsi_srv seek over on cylinder unit=%02x %04x %04x\n",
                     unit, uptr->STAR, uptr->CHS);
                 uptr->CHS = uptr->STAR;         /* we are there */
-//              sim_activate(uptr, 10);
                 sim_activate(uptr, 40);
                 break;
             }
@@ -815,10 +808,8 @@ t_stat scsi_srv(UNIT *uptr)
         sim_debug(DEBUG_CMD, dptr, "Load Mode Reg unit=%02x old %x new %x\n",
             unit, (uptr->SNS)&0xff, buf[0]);
         uptr->CMD &= LMASK;                     /* remove old cmd */
-//      uptr->SNS &= MASK24;                    /* clear old mode data */
         /* leave the TCMD bit */
         uptr->SNS &= (MASK24 | SNS_TCMD);       /* clear old mode data */
-//      uptr->SNS |= (buf[0] << 24);            /* save mode value */
         /* do not change TCMD bit */
         uptr->SNS |= ((buf[0]&0xfe) << 24);     /* save mode value */
         chan_end(chsa, SNS_CHNEND|SNS_DEVEND);
@@ -867,7 +858,6 @@ t_stat scsi_srv(UNIT *uptr)
                     ch, chsa, chp->ccw_addr, tstart, bcnt); 
 
                 /* convert sect address to chs value */
-//              uptr->CHS = scsisec2star(tstart, type);
                 uptr->CHS = tstart;
                 /* get byte address for seek */
                 tstart = tstart * SSB(type);
@@ -898,7 +888,6 @@ t_stat scsi_srv(UNIT *uptr)
                     buf[12] = 0xf4;
                     buf[17] = (uint8)HDS(type); /* # of heads */
                     buf[23] = (uint8)SPT(type); /* Sect/track */
-//                  buf[27] = SPT(type);        /* Sect/track */
                     goto merge;                 /* go output data and return */
                 }
                 /* this is most likely UTX calling */
@@ -969,7 +958,6 @@ t_stat scsi_srv(UNIT *uptr)
                 buf[12] = 0xf4;
                 buf[17] = (uint8)HDS(type);     /* # of heads */
                 buf[23] = (uint8)SPT(type);     /* Sect/track */
-//              buf[27] = SPT(type);            /* Sect/track */
 
 merge:
                 /* output response data */
@@ -1250,7 +1238,6 @@ read_cap:                                       /* merge point from TCMD process
             "scsi_srv cmd RCAP chsa %04x capacity %06x secsize %03x completed\n",
             chsa, cap, ssize);
         chan_end(chsa, SNS_CHNEND|SNS_DEVEND);  /* return OK */
-//      return SCPE_OK;
         break;
 
     /* Transfer Command Packet (specifies CDB to send) */
@@ -1269,18 +1256,7 @@ read_cap:                                       /* merge point from TCMD process
 
         /* mema has IOCD word 1 contents. */
         /* len has the byte count from IOCD wd2 */
-
         len = chp->ccw_count;                   /* TCMD command count */
-
-#ifdef NOTNOW
-        if (len != 36) {
-            /* we have invalid count, error, bail out */
-            uptr->CMD &= LMASK;             /* remove old status bits & cmd */
-            uptr->SNS |= SNS_CMDREJ|SNS_EQUCHK;
-            chan_end(chsa, SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-            break;
-        }
-#endif
 
         for (i=0; i < len; i++) {
             if (chan_read_byte(chsa, &buf[i])) {
@@ -1319,7 +1295,7 @@ read_cap:                                       /* merge point from TCMD process
         break;
 
     default:
-        sim_debug(DEBUG_CMD, dptr, "invalid command %02x unit %02x\n", cmd, unit);
+        sim_debug(DEBUG_EXP, dptr, "invalid command %02x unit %02x\n", cmd, unit);
         uptr->SNS |= SNS_CMDREJ;
         uptr->CMD &= LMASK;                     /* remove old status bits & cmd */
         return SNS_CHNEND|STATUS_PCHK;
@@ -1343,9 +1319,22 @@ void scsi_ini(UNIT *uptr, t_bool f)
     uptr->SNS = 0;                              /* clear any status */
     /* total sectors on disk */
     uptr->capac = CAP(i);                       /* disk size in sectors */
+    sim_cancel(uptr);                           /* stop any timers */
 
-    sim_debug(DEBUG_EXP, &sba_dev, "SBA init device %s on unit SBA%04x cap %x %d\n",
+    sim_debug(DEBUG_EXP, &sba_dev, "SCSI init device %s on unit SBA%04x cap %x %d\n",
         dptr->name, GET_UADDR(uptr->CMD), uptr->capac, uptr->capac);
+}
+
+/* handle rschnlio cmds for scsi */
+t_stat  scsi_rschnlio(UNIT *uptr) {
+    DEVICE  *dptr = get_dev(uptr);
+    uint16  chsa = GET_UADDR(uptr->CMD);
+    int     cmd = uptr->CMD & DSK_CMDMSK;
+
+    sim_debug(DEBUG_EXP, dptr,
+        "scsi_rschnl chsa %04x cmd = %02x\n", chsa, cmd);
+    scsi_ini(uptr, 0);                          /* reset the unit */
+    return SCPE_OK;
 }
 
 t_stat scsi_reset(DEVICE * dptr)
@@ -1358,20 +1347,21 @@ t_stat scsi_reset(DEVICE * dptr)
 int scsi_format(UNIT *uptr) {
     int         type = GET_TYPE(uptr->flags);
     DEVICE      *dptr = get_dev(uptr);
-    int32       ssize = scsi_type[type].ssiz * 4;       /* disk sector size in bytes */
-    uint32      tsize = scsi_type[type].spt;            /* get track size in sectors */
+    int32       ssize = scsi_type[type].ssiz * 4;   /* disk sector size in bytes */
+    uint32      tsize = scsi_type[type].spt;    /* get track size in sectors */
     uint32      csize = scsi_type[type].nhds * tsize;   /* get cylinder size in sectors */
-    uint32      cyl = scsi_type[type].cyl;              /* get # cyl */
-    uint32      cap = scsi_type[type].cyl * csize;      /* disk capacity in sectors */
-    uint32      cylv = cyl;                             /* number of cylinders */
+    uint32      cyl = scsi_type[type].cyl;      /* get # cyl */
+    uint32      cap = scsi_type[type].cyl * csize;  /* disk capacity in sectors */
+    uint32      cylv = cyl;                     /* number of cylinders */
     uint8       *buff;
     int         i;
+    t_stat      oldsw = sim_switches;           /* save switches */
 
                 /* last sector address of disk (cyl * hds * spt) - 1 */
-    uint32      laddr = CAP(type) - 1;              /* last sector of disk */
+    uint32      laddr = CAP(type) - 1;          /* last sector of disk */
 
                 /* last track address of disk (cyl * hds * spt) - spt */
-    uint32      ltaddr = CAP(type)-SPT(type);       /* last sector of disk */
+    uint32      ltaddr = CAP(type)-SPT(type);   /* last sector of disk */
 
                 /* get sector address of vendor defect table VDT */
                 /* put data = 0xf0000000 0xf4000000 */
@@ -1397,8 +1387,8 @@ int scsi_format(UNIT *uptr) {
     uint32      umap[256] =
                 {
                     /* try to makeup a utx dmap */
-                    0x4e554d50,(cap-1),luaddr-1,0,0,0,0,0xe10,
-                    0,0x5320,0,0x4e60,0x46,luaddr,0,0xd360,
+                    0x4e554d50,(cap-1),(uint32)(luaddr-1),0,0,0,0,0xe10,
+                    0,0x5320,0,0x4e60,0x46,(uint32)luaddr,0,0xd360,
                     0x88,0x186b0,0x13a,0xd100,0x283,0,0,0,
                     0,0x22c2813e,0,0x06020000,0xf4,0,0x431b1c,0,
                 };
@@ -1414,10 +1404,24 @@ int scsi_format(UNIT *uptr) {
     uint32      fmap[4] = {0xf0000000 | (cap-1), 0x8a000000 | daddr,
                     0x9a000000 | ltaddr, 0xf4000000};
 
+    /* see if -i or -n specified on attach command */
+    if (!(sim_switches & SWMASK('N')) && !(sim_switches & SWMASK('I'))) {
+        sim_switches = 0;                       /* simh tests 'N' & 'Y' switches */
+        /* see if user wants to initialize the disk */
+        if (!get_yn("Initialize disk? [Y] ", TRUE)) {
+//          printf("disk_format init question is false\r\n");
+            sim_switches = oldsw;
+            return 1;
+        }
+        sim_switches = oldsw;                   /* restore switches */
+    }
+
+#if 0
     /* see if user wants to initialize the disk */
     if (!get_yn("Initialize disk? [Y] ", TRUE)) {
         return 1;
     }
+#endif
 
     /* VDT  249264 (819/18/0) 0x3cdb0 for 9346 - 823/19/16 vaddr */
     /* MDT  249248 (819/17/0) 0x3cda0 for 9346 - 823/19/16 daddr */
@@ -1434,11 +1438,6 @@ int scsi_format(UNIT *uptr) {
         detach_unit(uptr);
         return SCPE_ARG;
     }
-    /* put dummy data in first word of disk */
-    buff[0] = 'Z';
-    buff[1] = 'E';
-    buff[2] = 'R';
-    buff[3] = 'O';
     sim_debug(DEBUG_CMD, dptr,
         "Creating disk file of trk size %04x bytes, capacity %d\n",
         tsize*ssize, cap*ssize);
@@ -1451,12 +1450,6 @@ int scsi_format(UNIT *uptr) {
             free(buff);                         /* free cylinder buffer */
             buff = 0;
             return 1;
-        }
-        if (cyl == 0) {
-            buff[0] = 0;
-            buff[1] = 0;
-            buff[2] = 0;
-            buff[3] = 0;
         }
         if ((cyl % 100) == 0)
             fputc('.', stderr);
@@ -1557,6 +1550,9 @@ int scsi_format(UNIT *uptr) {
         return 1;
     }
 
+    printf("SCSI Disk %s has %x (%d) cyl, %x (%d) hds, %x (%d) sec\r\n",
+        scsi_type[type].name, CYL(type), CYL(type), HDS(type), HDS(type),
+        SPT(type), SPT(type));
     printf("writing to vmap sec %x (%d) bytes %x (%d)\n",
         vaddr, vaddr, (vaddr)*ssize, (vaddr)*ssize);
     printf("writing to flaw map sec %x (%d) bytes %x (%d)\n",
@@ -1581,14 +1577,38 @@ t_stat scsi_attach(UNIT *uptr, CONST char *file) {
     int             type = GET_TYPE(uptr->flags);
     DEVICE          *dptr = get_dev(uptr);
     DIB             *dibp = 0;
-    t_stat          r;
+    t_stat          r, s;
     uint32          ssize;                      /* sector size in bytes */
+    uint32          info, good,zmap = 0x5a4d4150;   /* ZMAP */
     uint8           buff[1024];
+    int             i, j;
+
+                    /* last sector address of disk (cyl * hds * spt) - 1 */
+    uint32          laddr = CAP(type) - 1;      /* last sector of disk */
+                    /* defect map */
+    uint32          dmap[4] = {0xf0000000 | (CAP(type)-1), 0x8a000000,
+                        0x9a000000 | (CAP(type)-1), 0xf4000000};
+
+    for (i=0; i<4; i++) {                       /* byte swap data for last sector */
+        dmap[i] = (((dmap[i] & 0xff) << 24) | ((dmap[i] & 0xff00) << 8) |
+            ((dmap[i] & 0xff0000) >> 8) | ((dmap[i] >> 24) & 0xff));
+    }
 
     uptr->SNS = 0;                              /* clear any status */
+
+    /* see if valid disk entry */
     if (scsi_type[type].name == 0) {            /* does the assigned disk have a name */
         detach_unit(uptr);                      /* no, reject */
         return SCPE_FMT;                        /* error */
+    }
+
+    if (dptr->flags & DEV_DIS) {
+        fprintf(sim_deb,
+            "ERROR===ERROR\nSCSI Disk device %s disabled on system, aborting\r\n",
+            dptr->name);
+        printf("ERROR===ERROR\nSCSI Disk device %s disabled on system, aborting\r\n",
+            dptr->name);
+        return SCPE_UDIS;                       /* device disabled */
     }
 
     /* have simulator attach the file to the unit */
@@ -1597,6 +1617,8 @@ t_stat scsi_attach(UNIT *uptr, CONST char *file) {
 
     uptr->capac = CAP(type);                    /* disk capacity in sectors */
     ssize = SSB(type);                          /* get sector size in bytes */
+    for (i=0; i<(int)ssize; i++)
+        buff[i] = 0;                            /* zero the buffer */
 
     sim_debug(DEBUG_CMD, dptr, "SCSI Disk %s %04x cyl %d hds %d sec %d ssiz %d capacity %d\n",
         scsi_type[type].name, chsa, scsi_type[type].cyl, scsi_type[type].nhds, 
@@ -1605,22 +1627,115 @@ t_stat scsi_attach(UNIT *uptr, CONST char *file) {
         scsi_type[type].name, chsa, scsi_type[type].cyl, scsi_type[type].nhds, 
         scsi_type[type].spt, ssize, uptr->capac); /* disk capacity */
 
-
-    if ((sim_fseek(uptr->fileref, 0, SEEK_SET)) != 0) { /* seek home */
-        detach_unit(uptr);                      /* if no space, error */
-        return SCPE_FMT;                        /* error */
+    /* see if -i or -n specified on attach command */
+    if ((sim_switches & SWMASK('N')) || (sim_switches & SWMASK('I'))) {
+        goto fmt;                               /* user wants new disk */
     }
 
-    /* read in the 1st sector of the 'disk' */
-    if ((r = sim_fread(&buff[0], sizeof(uint8), ssize, uptr->fileref) != ssize)) {
-        sim_debug(DEBUG_CMD, dptr, "Disk format fread ret = %04x\n", r);
+    /* seek to end of disk */
+    if ((sim_fseek(uptr->fileref, 0, SEEK_END)) != 0) {
+        sim_debug(DEBUG_CMD, dptr, "SCSI Disk attach SEEK end failed\n");
+        printf( "SCSI Disk attach SEEK end failed\r\n");
+        goto fmt;                               /* not setup, go format */
+    }
+
+    s = ftell(uptr->fileref);                   /* get current file position */
+    if (s == 0) {
+        sim_debug(DEBUG_CMD, dptr, "SCSI Disk attach ftell failed s=%06d\n", s);
+        printf("SCSI Disk attach ftell failed s=%06d\r\n", s);
+        goto fmt;                               /* not setup, go format */
+    }
+    sim_debug(DEBUG_CMD, dptr, "SCSI Disk attach ftell value s=%06d b=%06d CAP %06d\n", s/ssize, s, CAP(type));
+    printf("SCSI Disk attach ftell value s=%06d b=%06d CAP %06d\r\n", s/ssize, s, CAP(type));
+
+    if (((int)s/(int)ssize) < ((int)CAP(type))) {   /* full sized disk? */
+        j = (CAP(type) - (s/ssize));            /* get # sectors to write */
+        sim_debug(DEBUG_CMD, dptr,
+            "SCSI Disk attach for MPX 1.X needs %04d more sectors added to disk\n", j);
+        printf("SSFI Disk attach for MPX 1.X needs %04d more sectors added to disk\r\n", j);
+        /* must be MPX 1.X disk, extend to MPX 3.X size */
+        /* write sectors of zero to end of disk to fill it out */
+        for (i=0; i<j; i++) {
+            if ((r = sim_fwrite(buff, sizeof(uint8), ssize, uptr->fileref) != ssize)) {
+                sim_debug(DEBUG_CMD, dptr, "SCSI Disk attach fread ret = %04d\n", r);
+                printf("SCSI Disk attach fread ret = %04d\r\n", r);
+                goto fmt;                       /* not setup, go format */
+            }
+        }
+        s = ftell(uptr->fileref);               /* get current file position */
+        sim_debug(DEBUG_CMD, dptr,
+            "SCSI Disk attach MPX 1.X file extended & sized secs %06d bytes %06d\n", s/ssize, s);
+        printf("SCSI Disk attach MPX 1.X  file extended & sized secs %06d bytes %06d\r\n", s/ssize, s);
+    }
+
+    /* seek last sector of disk */
+    if ((sim_fseek(uptr->fileref, (CAP(type)-1)*ssize, SEEK_SET)) != 0) {
+        sim_debug(DEBUG_CMD, dptr, "SCSI Disk attach SEEK last sector failed\n");
+        printf("SCSI Disk attach SEEK last sector failed\r\n");
         goto fmt;
     }
 
-    if ((buff[0] | buff[1] | buff[2] | buff[3]) == 0) {
+    /* see if there is disk size-1 in last sector of disk, if not add it */
+    if ((r = sim_fread(buff, sizeof(uint8), ssize, uptr->fileref) != ssize)) {
+        sim_debug(DEBUG_CMD, dptr, "SCSI Disk format fread error = %04d\n", r);
+        printf("SCSI Disk format fread error = %04d\r\n", r);
+add_size:
+        if (ssize == 768) {
+            /* assume we have MPX 1x, and go on */
+            /* write dmap data to last sector on disk for mpx 1.x */
+            if ((sim_fseek(uptr->fileref, laddr*ssize, SEEK_SET)) != 0) { /* seek last sector */
+                sim_debug(DEBUG_CMD, dptr,
+                    "SCSI Error on last sector seek to sect %06d offset %06d bytes\n",
+                    (CAP(type)-1), (CAP(type)-1)*ssize);
+                printf("SCSI Error on last sector seek to sect %06d offset %06d bytes\r\n",
+                    (CAP(type)-1), (CAP(type)-1)*ssize);
+                goto fmt;
+            }
+            if ((sim_fwrite((char *)&dmap, sizeof(uint32), 4, uptr->fileref)) != 4) {
+                sim_debug(DEBUG_CMD, dptr,
+                    "SCSI Error writing DMAP to sect %06x offset %06d bytes\n",
+                    (CAP(type)-1), (CAP(type)-1)*ssize);
+                printf("SCSI Error writing DMAP to sect %06x offset %06d bytes\r\n",
+                    (CAP(type)-1), (CAP(type)-1)*ssize);
+                goto fmt;
+            }
+
+            /* seek last sector of disk */
+            if ((sim_fseek(uptr->fileref, (CAP(type))*ssize, SEEK_SET)) != 0) {
+                sim_debug(DEBUG_CMD, dptr, "SCSI Disk attach SEEK last sector failed\n");
+                printf( "SCSI Disk attach SEEK last sector failed\r\n");
+                goto fmt;
+            }
+            s = ftell(uptr->fileref);           /* get current file position */
+            sim_debug(DEBUG_CMD, dptr,
+                "SCSI Disk attach MPX file extended & sized secs %06d bytes %06d\n", s/ssize, s);
+            printf("SCSI Disk attach MPX file extended & sized secs %06d bytes %06d\r\n", s/ssize, s);
+            goto ldone;
+        } else {
+            /* error if UTX */
+            detach_unit(uptr);                  /* if error, abort */
+            return SCPE_FMT;                    /* error */
+        }
+    } else {
+        /* if not disk size, go add it in for MPX, error if UTX */
+        if ((buff[0] | buff[1] | buff[2] | buff[3]) == 0) {
+            sim_debug(DEBUG_CMD, dptr,
+                "SCSI Disk format0 buf0 %02x buf1 %02x buf2 %02x buf3 %02x\n",
+                buff[0], buff[1], buff[2], buff[3]);
+            goto add_size;
+        }
+    }
+
+    /* the last sector is used by UTX for a ZMAP, so if there we are good to go */
+    info = (buff[0]<<24) | (buff[1]<<16) | (buff[2]<<8) | buff[3];
+    good = 0xf0000000 | (CAP(type)-1);
+    /* check for 0xf0ssssss where ssssss is disk size-1 in sectors */
+    if ((info != good) && (info != zmap)) {
         sim_debug(DEBUG_CMD, dptr,
-        "Disk format buf0 %02x buf1 %02x buf2 %02x buf3 %02x\n",
-        buff[0], buff[1], buff[2], buff[3]);
+            "SCSI Disk format error buf0 %02x buf1 %02x buf2 %02x buf3 %02x\n",
+            buff[0], buff[1], buff[2], buff[3]);
+        printf("SCSI Disk format error buf0 %02x buf1 %02x buf2 %02x buf3 %02x\r\n",
+            buff[0], buff[1], buff[2], buff[3]);
 fmt:
         /* format the drive */
         if (scsi_format(uptr)) {
@@ -1628,26 +1743,27 @@ fmt:
             return SCPE_FMT;                    /* error */
         }
     }
-
+ldone:
     if ((sim_fseek(uptr->fileref, 0, SEEK_SET)) != 0) { /* seek home */
         detach_unit(uptr);                      /* if no space, error */
         return SCPE_FMT;                        /* error */
     }
 
+    /* start out at sector 0 */
     uptr->CHS = 0;                              /* set CHS to cyl/hd/sec = 0 */
 
     sim_debug(DEBUG_CMD, dptr,
-        "Attach %s %04x cyl %d hds %d spt %d spc %d cap sec %d cap bytes %d\n",
+        "SCSI Attach %s %04x cyl %d hds %d spt %d spc %d cap sec %d cap bytes %d\n",
         scsi_type[type].name, chsa, CYL(type), HDS(type), SPT(type), SPC(type),  
         CAP(type), CAPB(type));
 
-    printf("Attach %s %04x cyl %d hds %d spt %d spc %d cap sec %d cap bytes %d\r\n",
+    printf("SCSI Attach %s %04x cyl %d hds %d spt %d spc %d cap sec %d cap bytes %d\r\n",
         scsi_type[type].name, chsa, CYL(type), HDS(type), SPT(type), SPC(type),  
         CAP(type), CAPB(type));
 
-    sim_debug(DEBUG_CMD, dptr, "File %s at chsa %04x attached to %s\n",
+    sim_debug(DEBUG_CMD, dptr, "SCSI File %s at chsa %04x attached to %s is ready\n",
         file, chsa, scsi_type[type].name);
-    printf("File %s at chsa %04x attached to %s\r\n",
+    printf("SCSI File %s at chsa %04x attached to %s is ready\r\n",
         file, chsa, scsi_type[type].name);
 
     /* check for valid configured disk */
@@ -1679,9 +1795,17 @@ t_stat scsi_boot(int32 unit_num, DEVICE *dptr) {
 
     sim_debug(DEBUG_CMD, dptr, "SCSI Disk Boot dev/unit %04x\n", GET_UADDR(uptr->CMD));
 
+    /* see if device disabled */
+    if (dptr->flags & DEV_DIS) {
+        printf("ERROR===ERROR\r\nSCSI Disk device %s disabled on system, aborting\r\n",
+            dptr->name);
+        return SCPE_UDIS;                       /* device disabled */
+    }
+
     if ((uptr->flags & UNIT_ATT) == 0) {
         sim_debug(DEBUG_EXP, dptr, "SCSI Disk Boot attach error dev/unit %04x\n",
             GET_UADDR(uptr->CMD));
+        printf("SCSI Disk Boot attach error dev/unit %04x\n", GET_UADDR(uptr->CMD));
         return SCPE_UNATT;                      /* attached? */
     }
 
@@ -1740,9 +1864,9 @@ t_stat scsi_help (FILE *st, DEVICE *dptr, UNIT *uptr, int32 flag,
     }
     fprintf (st, ".\nEach drive has the following storage capacity:\r\n");
     for (i = 0; scsi_type[i].name != 0; i++) {
-        int32   size = CAPB(i);                     /* disk capacity in bytes */
-        size /= 1024;                               /* make KB */
-        size = (10 * size) / 1024;                  /* size in MB * 10 */
+        int32   size = CAPB(i);                 /* disk capacity in bytes */
+        size /= 1024;                           /* make KB */
+        size = (10 * size) / 1024;              /* size in MB * 10 */
         fprintf(st, "      %-8s %4d.%1d MB cyl %3d hds %3d sec %3d blk %3d\r\n",
             scsi_type[i].name, size/10, size%10, CYL(i), HDS(i), SPT(i), SSB(i));
     }

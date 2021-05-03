@@ -34,7 +34,7 @@
 
 /* useful conversions */
 /* Fill STAR value from cyl, trk, sec data */
-#define CHS2STAR(c,h,s)	        (((c<<16) & LMASK)|((h<<8) & 0xff00)|(s & 0xff))
+#define CHS2STAR(c,h,s)         (((c<<16) & LMASK)|((h<<8) & 0xff00)|(s & 0xff))
 /* convert STAR value to number of sectors */
 #define STAR2SEC(star,spt,spc)  ((star&0xff)+(((star>>8)&0xff)*spt)+(((star>>16)&0xffff)*spc))
 /* convert STAR value to number of heads or tracks */
@@ -105,9 +105,9 @@ bits 24-31 - FHD head count (number of heads on FHD or number head on FHD option
     /* for track 0, write max cyl/head/sec values in 0-3 */
     /* otherwise write current values */
 /*
-0   short lcyl;	        cylinder
-2   char ltkn;			head or track number
-3   char lid;			track label id (0xff means last track)
+0   short lcyl;         cylinder
+2   char ltkn;          head or track number
+3   char lid;           track label id (0xff means last track)
 4   char lflg1;         track status flags
         bit 0           good trk
             1           alternate trk
@@ -137,7 +137,7 @@ bits 24-31 - FHD head count (number of heads on FHD or number head on FHD option
 22  short laltcyl;      alternate cylinder number or return cyl num
 24  char lalttk;        alrernate track number or return track num
 25  char ldscnt;        data sector count 16/20
-26  char ldatrflg;		device attributes
+26  char ldatrflg;      device attributes
         bit 0           n/u
             1           disk is mhd
             2           n/u
@@ -156,9 +156,9 @@ bits 24-31 - FHD head count (number of heads on FHD or number head on FHD option
 /*************************************/
 /* sector label definations 34 bytes */
 /*
-0   short lcyl;	        cylinder number
-2   char lhd;			head number
-3   char lsec;		    sec # 0-15 or 0-19 for 16/20 format
+0   short lcyl;         cylinder number
+2   char lhd;           head number
+3   char lsec;          sec # 0-15 or 0-19 for 16/20 format
 4   char lflg1;         track/sector status flags
         bit 0           good sec
             1           alternate sec
@@ -185,7 +185,7 @@ bits 24-31 - FHD head count (number of heads on FHD or number head on FHD option
 22  short laltcyl;      alternate cylinder number or return cyl num
 24  char lalttk;        alrernate track number or return track num
 25  char ldscnt;        data sector count 16/20
-26  char ldatrflg;		device attributes
+26  char ldatrflg;      device attributes
         bit 0           n/u
             1           disk is mhd
             2           n/u
@@ -385,13 +385,14 @@ disk_type[] =
     {NULL, 0}
 };
 
-uint16  disk_preio(UNIT *uptr, uint16 chan) ;
-uint16  disk_startcmd(UNIT *uptr, uint16 chan,  uint8 cmd) ;
-uint16  disk_haltio(UNIT *uptr);
-uint16  disk_iocl(CHANP *chp, int32 tic_ok);
+t_stat  disk_preio(UNIT *uptr, uint16 chan) ;
+t_stat  disk_startcmd(UNIT *uptr, uint16 chan,  uint8 cmd) ;
+t_stat  disk_haltio(UNIT *uptr);
+t_stat  disk_iocl(CHANP *chp, int32 tic_ok);
 t_stat  disk_srv(UNIT *uptr);
 t_stat  disk_boot(int32 unitnum, DEVICE *dptr);
 void    disk_ini(UNIT *, t_bool);
+t_stat  disk_rschnlio(UNIT *uptr);
 t_stat  disk_reset(DEVICE *);
 t_stat  disk_attach(UNIT *, CONST char *);
 t_stat  disk_detach(UNIT *);
@@ -446,14 +447,14 @@ UNIT            dda_unit[] = {
 };
 
 DIB             dda_dib = {
-    disk_preio,     /* uint16 (*pre_io)(UNIT *uptr, uint16 chan)*/  /* Pre Start I/O */
-    disk_startcmd,  /* uint16 (*start_cmd)(UNIT *uptr, uint16 chan, uint8 cmd)*/ /* Start command */
-    disk_haltio,    /* uint16 (*halt_io)(UNIT *uptr) */         /* Halt I/O */
-    NULL,           /* uint16 (*stop_io)(UNIT *uptr) */         /* Stop I/O */
-    NULL,           /* uint16 (*test_io)(UNIT *uptr) */         /* Test I/O */
-    NULL,           /* uint16 (*rsctl_io)(UNIT *uptr) */        /* Reset Controller */
-    NULL,           /* uint16 (*rschnl_io)(UNIT *uptr) */       /* Reset Channel */
-    disk_iocl,      /* uint16 (*iocl_io)(CHANP *chp, int32 tik_ok)) */  /* Process IOCL */
+    disk_preio,     /* t_stat (*pre_io)(UNIT *uptr, uint16 chan)*/  /* Pre Start I/O */
+    disk_startcmd,  /* t_stat (*start_cmd)(UNIT *uptr, uint16 chan, uint8 cmd)*/ /* Start command */
+    disk_haltio,    /* t_stat (*halt_io)(UNIT *uptr) */         /* Halt I/O */
+    NULL,           /* t_stat (*stop_io)(UNIT *uptr) */         /* Stop I/O */
+    NULL,           /* t_stat (*test_io)(UNIT *uptr) */         /* Test I/O */
+    NULL,           /* t_stat (*rsctl_io)(UNIT *uptr) */        /* Reset Controller */
+    disk_rschnlio,  /* t_stat (*rschnl_io)(UNIT *uptr) */       /* Reset Channel */
+    disk_iocl,      /* t_stat (*iocl_io)(CHANP *chp, int32 tik_ok)) */  /* Process IOCL */
     disk_ini,       /* void  (*dev_ini)(UNIT *, t_bool) */      /* init function */
     dda_unit,       /* UNIT* units */                           /* Pointer to units structure */
     dda_chp,        /* CHANP* chan_prg */                       /* Pointer to chan_prg structure */
@@ -492,14 +493,14 @@ UNIT            ddb_unit[] = {
 };
 
 DIB             ddb_dib = {
-    disk_preio,     /* uint16 (*pre_io)(UNIT *uptr, uint16 chan)*/  /* Pre Start I/O */
-    disk_startcmd,  /* uint16 (*start_cmd)(UNIT *uptr, uint16 chan, uint8 cmd)*/ /* Start command */
-    disk_haltio,    /* uint16 (*halt_io)(UNIT *uptr) */         /* Halt I/O */
-    NULL,           /* uint16 (*stop_io)(UNIT *uptr) */         /* Stop I/O */
-    NULL,           /* uint16 (*test_io)(UNIT *uptr) */         /* Test I/O */
-    NULL,           /* uint16 (*rsctl_io)(UNIT *uptr) */        /* Reset Controller */
-    NULL,           /* uint16 (*rschnl_io)(UNIT *uptr) */       /* Reset Channel */
-    disk_iocl,      /* uint16 (*iocl_io)(CHANP *chp, int32 tic_ok)) */  /* Process IOCL */
+    disk_preio,     /* t_stat (*pre_io)(UNIT *uptr, uint16 chan)*/  /* Pre Start I/O */
+    disk_startcmd,  /* t_stat (*start_cmd)(UNIT *uptr, uint16 chan, uint8 cmd)*/ /* Start command */
+    disk_haltio,    /* t_stat (*halt_io)(UNIT *uptr) */         /* Halt I/O */
+    NULL,           /* t_stat (*stop_io)(UNIT *uptr) */         /* Stop I/O */
+    NULL,           /* t_stat (*test_io)(UNIT *uptr) */         /* Test I/O */
+    NULL,           /* t_stat (*rsctl_io)(UNIT *uptr) */        /* Reset Controller */
+    disk_rschnlio,  /* t_stat (*rschnl_io)(UNIT *uptr) */       /* Reset Channel */
+    disk_iocl,      /* t_stat (*iocl_io)(CHANP *chp, int32 tic_ok)) */  /* Process IOCL */
     disk_ini,       /* void  (*dev_ini)(UNIT *, t_bool) */      /* init function */
     ddb_unit,       /* UNIT* units */                           /* Pointer to units structure */
     ddb_chp,        /* CHANP* chan_prg */                       /* Pointer to chan_prg structure */
@@ -586,14 +587,24 @@ uint32 get_dmatrk(UNIT *uptr, uint32 star, uint8 buf[])
     int     unit = (uptr - dptr->units);        /* get the UNIT number */
     int     len, i, cn, found = -1;
 
-    /* zero the Track Label Buffer */
-    for (i = 0; i < 30; i++)
-        buf[i] = 0;
-
+#define SPEEDUP
+#ifdef SPEEDUP
+    int ds = ((CYL(type) - 3) * HDS(type)) * SPT(type);  /* diag start */
     /* get file offset in sectors */
     tstart = STAR2SEC(star, SPT(type), SPC(type));
     /* convert sector number back to chs value to sync disk for diags */
     nstar = disksec2star(tstart, type);
+    if (ds >= (int)tstart) {
+        /* zero the Track Label flags */
+        buf[4] = 0;
+        return nstar;                           /* not in diag track, return */
+    }
+#else
+    /* get file offset in sectors */
+    tstart = STAR2SEC(star, SPT(type), SPC(type));
+    /* convert sector number back to chs value to sync disk for diags */
+    nstar = disksec2star(tstart, type);
+#endif
 
     cyl = (nstar >> 16) & 0xffff;               /* get the cylinder */
     trk = (nstar >> 8) & 0xff;                  /* get the track */
@@ -601,11 +612,17 @@ uint32 get_dmatrk(UNIT *uptr, uint32 star, uint8 buf[])
 
     /* get track number */
     tstart = (cyl * HDS(type)) + trk;
-    sim_debug(DEBUG_EXP, dptr, "get_dmatrk RTL cyl %4x(%d) trk %x sec# %06x\n",
-        cyl, cyl, trk, tstart);
+//  sim_debug(DEBUG_EXP, dptr,
+    sim_debug(DEBUG_DETAIL, dptr,
+        "get_dmatrk RTL star %08x nstar %08x cyl %4x(%d) trk %x sec# %06x\n",
+        star, nstar, cyl, cyl, trk, tstart);
 
     /* calc offset in file to track label */
     offset = CAPB(type) + (tstart * 30);
+
+    /* zero the Track Label Buffer */
+    for (i = 0; i < 30; i++)
+        buf[i] = 0;
 
     /* see if track label is in cache */
     for (cn=0; cn<TRK_CACHE; cn++) {
@@ -615,7 +632,9 @@ uint32 get_dmatrk(UNIT *uptr, uint32 star, uint8 buf[])
                 buf[i] = tkl_label[unit].tkl[cn].label[i];
             found = cn;
             tkl_label[unit].tkl[cn].age++;
-            sim_debug(DEBUG_EXP, dptr, "get_dpatrk found in Cache to %06x\n", offset);
+//          sim_debug(DEBUG_EXP, dptr,
+            sim_debug(DEBUG_DETAIL, dptr,
+                "get_dpatrk found in Cache to %06x\n", offset);
             break;
         }
     }
@@ -623,17 +642,20 @@ uint32 get_dmatrk(UNIT *uptr, uint32 star, uint8 buf[])
     /* see if found in cache */
     if (found == -1) {
         /* file offset in bytes */
-        sim_debug(DEBUG_EXP, dptr, "get_dpatrk RTL SEEK on seek to %06x\n", offset);
+//      sim_debug(DEBUG_EXP, dptr,
+        sim_debug(DEBUG_DETAIL, dptr,
+            "get_dpatrk RTL SEEK on seek to %06x\n", offset);
 
         /* seek to the location where we will r/w track label */
         if ((sim_fseek(uptr->fileref, offset, SEEK_SET)) != 0) {  /* do seek */
-            sim_debug(DEBUG_EXP, dptr, "get_dpatrk RTL, Error on seek to %04x\n", offset);
+            sim_debug(DEBUG_EXP, dptr,
+                "get_dpatrk RTL, Error on seek to %04x\n", offset);
             return 0;
         }
 
         /* read in a track label from disk */
         if ((len=sim_fread(buf, 1, 30, uptr->fileref)) != 30) {
-            sim_debug(DEBUG_CMD, dptr,
+            sim_debug(DEBUG_EXP, dptr,
                 "get_dpatrk Error %08x on read %04x of diskfile cyl %04x hds %02x sec 00\n",
                 len, 30, cyl, trk);
             return 0;
@@ -655,7 +677,6 @@ uint32 get_dmatrk(UNIT *uptr, uint32 star, uint8 buf[])
         /* get the alternate track address */
         cyl = (buf[22] << 8) | buf[23];         /* get the cylinder */
         trk = buf[24];                          /* get the track */
-//bad   sec = 0;                                /* sec is zero */
         nstar = CHS2STAR(cyl, trk, sec);
         sim_debug(DEBUG_DETAIL, dptr,
             "Track %08x is defective, new track %08x\n", tstart, nstar);
@@ -685,7 +706,7 @@ uint32 get_dmatrk(UNIT *uptr, uint32 star, uint8 buf[])
 }
 
 /* start a disk operation */
-uint16 disk_preio(UNIT *uptr, uint16 chan)
+t_stat disk_preio(UNIT *uptr, uint16 chan)
 {
     DEVICE      *dptr = get_dev(uptr);
     uint16      chsa = GET_UADDR(uptr->CMD);
@@ -703,7 +724,7 @@ uint16 disk_preio(UNIT *uptr, uint16 chan)
 /* load in the IOCD and process the commands */
 /* return = 0 OK */
 /* return = 1 error, chan_status will have reason */
-uint16  disk_iocl(CHANP *chp, int32 tic_ok)
+t_stat  disk_iocl(CHANP *chp, int32 tic_ok)
 {
     uint32      word1 = 0;
     uint32      word2 = 0;
@@ -788,9 +809,6 @@ loop:
     case DSK_IHA: case DSK_WTL: case DSK_RTL: case DSK_RAP: case DSK_TESS:  
     case DSK_FNSK: case DSK_REL: case DSK_RES: case DSK_POR: case DSK_TIC:
     case DSK_REC:
-        /* reset status to on cyl & ready */
-//      uptr->SNS2 = (SNS_UNR|SNS_ONC|SNS_USEL);
-//      uptr->SNS2 = 0;
     case DSK_SNS:   
         break;
     default:
@@ -800,8 +818,6 @@ loop:
             "disk_iocl bad cmd chan_status[%04x] %04x\n", chan, chp->chan_status);
         return 1;                               /* error return */
     }
-
-//28chp->ccw_count = word2 & 0xffff;            /* get 16 bit byte count from IOCD WD 2 */
 
     if (chp->chan_info & INFO_SIOCD) {          /* see if 1st IOCD in channel prog */
         /* 1st command can not be a TIC or NOP */
@@ -824,7 +840,6 @@ loop:
                     "disk_iocl tic cmd bad address chan %02x tic caw %06x IOCD wd 1 %08x\n",
                     chan, chp->chan_caw, word1);
                 chp->chan_status |= STATUS_PCHK; /* program check for invalid tic */
-//              chp->chan_caw = word1;          /* get new IOCD address */
                 chp->chan_caw = word1 & MASK24; /* get new IOCD address */
                 uptr->SNS |= SNS_CMDREJ;        /* cmd rejected status */
                 uptr->SNS |= SNS_INAD;          /* invalid address status */
@@ -837,7 +852,6 @@ loop:
                 chan, chp->chan_caw, word1);
             goto loop;                          /* restart the IOCD processing */
         }
-//      chp->chan_caw = word1;                  /* get new IOCD address */
         chp->chan_caw = word1 & MASK24;         /* get new IOCD address */
         chp->chan_status |= STATUS_PCHK;        /* program check for invalid tic */
         uptr->SNS |= SNS_CMDREJ;                /* cmd rejected status */
@@ -897,7 +911,8 @@ loop:
             return 1;                           /* if none, error */
         }
 
-        sim_debug(DEBUG_XIO, dptr,
+//      sim_debug(DEBUG_XIO, dptr,
+        sim_debug(DEBUG_DETAIL, dptr,
             "disk_iocl @%06x before start_cmd chan %04x status %04x count %04x SNS %08x\n",
             chp->chan_caw, chan, chp->chan_status, chp->ccw_count, uptr->u5);
 
@@ -907,7 +922,8 @@ loop:
         chp->chan_status = (chp->chan_status & 0xff00) | devstat;
         chp->chan_info &= ~INFO_SIOCD;          /* show not first IOCD in channel prog */
 
-        sim_debug(DEBUG_XIO, dptr,
+//      sim_debug(DEBUG_XIO, dptr,
+        sim_debug(DEBUG_DETAIL, dptr,
             "disk_iocl @%06x after start_cmd chan %04x status %08x count %04x\n",
             chp->chan_caw, chan, chp->chan_status, chp->ccw_count);
 
@@ -929,6 +945,7 @@ loop:
                 sim_debug(DEBUG_EXP, dptr,
                     "disk_iocl continue wait chsa %04x status %08x\n",
                     chp->chan_dev, chp->chan_status);
+                chp->chan_qwait = QWAIT;            /* run 25 instructions before starting iocl */
             }
         } else
 
@@ -938,43 +955,48 @@ loop:
         if (chp->chan_status & (STATUS_DEND|STATUS_CEND)) {
             uint16  chsa = GET_UADDR(uptr->u3); /* get channel & sub address */
             chan_end(chsa, SNS_CHNEND|SNS_DEVEND);  /* show I/O complete */
-            sim_debug(DEBUG_XIO, dptr,
+//          sim_debug(DEBUG_XIO, dptr,
+            sim_debug(DEBUG_DETAIL, dptr,
                 "disk_iocl @%06x FIFO #%1x cmd complete chan %04x status %04x count %04x\n",
                 chp->chan_caw, FIFO_Num(chsa), chan, chp->chan_status, chp->ccw_count);
         }
     }
     /* the device processor returned OK (0), so wait for I/O to complete */
     /* nothing happening, so return */
-    sim_debug(DEBUG_XIO, dptr,
+//  sim_debug(DEBUG_XIO, dptr,
+    sim_debug(DEBUG_DETAIL, dptr,
         "disk_iocl @%06x return, chan %04x status %04x count %04x irq_pend %1x\n",
         chp->chan_caw, chan, chp->chan_status, chp->ccw_count, irq_pend);
     return 0;                                   /* good return */
 }
 
-uint16 disk_startcmd(UNIT *uptr, uint16 chan,  uint8 cmd)
+t_stat disk_startcmd(UNIT *uptr, uint16 chan,  uint8 cmd)
 {
     uint16      chsa = GET_UADDR(uptr->CMD);
     DEVICE      *dptr = get_dev(uptr);
     int32       unit = (uptr - dptr->units);
     CHANP       *chp = find_chanp_ptr(chsa);    /* find the chanp pointer */
 
-    sim_debug(DEBUG_CMD, dptr,
+//  sim_debug(DEBUG_CMD, dptr,
+    sim_debug(DEBUG_DETAIL, dptr,
         "disk_startcmd chsa %04x unit %02x cmd %02x CMD %08x\n",
         chsa, unit, cmd, uptr->CMD);
     if ((uptr->flags & UNIT_ATT) == 0) {        /* unit attached status */
-        sim_debug(DEBUG_CMD, dptr, "disk_startcmd unit %02x not attached\n", unit);
+        sim_debug(DEBUG_EXP, dptr, "disk_startcmd unit %02x not attached\n", unit);
         uptr->SNS |= SNS_INTVENT;               /* unit intervention required */
         if (cmd != DSK_SNS)                     /* we are completed with unit check status */
             return SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK;
     }
 
     if ((uptr->CMD & DSK_CMDMSK) != 0) {
-        sim_debug(DEBUG_CMD, dptr, "disk_startcmd unit %02x busy\n", unit);
+        sim_debug(DEBUG_EXP, dptr, "disk_startcmd unit %02x busy\n", unit);
         uptr->CMD |= DSK_BUSY;                  /* Flag we are busy */
         return SNS_BSY;
     }
     uptr->SNS2 |= SNS_USEL;                     /* unit selected */
-    sim_debug(DEBUG_CMD, dptr, "disk_startcmd CMD continue unit=%02x cmd %02x iocla %06x cnt %04x\n",
+//  sim_debug(DEBUG_CMD, dptr,
+    sim_debug(DEBUG_DETAIL, dptr,
+        "disk_startcmd CMD continue unit=%02x cmd %02x iocla %06x cnt %04x\n",
         unit, cmd, chp->chan_caw, chp->ccw_count);
 
     /* Unit is online, so process a command */
@@ -1045,7 +1067,7 @@ uint16 disk_startcmd(UNIT *uptr, uint16 chan,  uint8 cmd)
         break;
     }
 
-    sim_debug(DEBUG_CMD, dptr,
+    sim_debug(DEBUG_EXP, dptr,
         "disk_startcmd done with bad disk cmd %02x chsa %04x SNS %08x\n",
         cmd, chsa, uptr->SNS);
     uptr->SNS |= SNS_CMDREJ;                    /* cmd rejected */
@@ -1053,40 +1075,41 @@ uint16 disk_startcmd(UNIT *uptr, uint16 chan,  uint8 cmd)
 }
 
 /* Handle haltio transfers for disk */
-uint16  disk_haltio(UNIT *uptr) {
+t_stat  disk_haltio(UNIT *uptr) {
     uint16      chsa = GET_UADDR(uptr->CMD);
     DEVICE      *dptr = get_dev(uptr);
     int         cmd = uptr->CMD & DSK_CMDMSK;
     CHANP       *chp = find_chanp_ptr(chsa);    /* find the chanp pointer */
 
-    sim_debug(DEBUG_EXP, dptr, "disk_haltio enter chsa %04x cmd = %02x\n", chsa, cmd);
+//  sim_debug(DEBUG_EXP, dptr,
+    sim_debug(DEBUG_DETAIL, dptr,
+        "disk_haltio enter chsa %04x cmd = %02x\n", chsa, cmd);
 
     /* terminate any input command */
     /* UTX wants SLI bit, but no unit exception */
     /* status must not have an error bit set */
     /* otherwise, UTX will panic with "bad status" */
-    if ((uptr->CMD & DSK_CMDMSK) != 0) {    /* is unit busy */
-        sim_debug(DEBUG_CMD, dptr,
-            "disk_haltio HIO chsa %04x cmd = %02x ccw_count %02x\n", chsa, cmd, chp->ccw_count);
+    if ((uptr->CMD & DSK_CMDMSK) != 0) {        /* is unit busy */
+        sim_debug(DEBUG_EXP, dptr,
+            "disk_haltio HIO chsa %04x cmd = %02x ccw_count %02x\n",
+            chsa, cmd, chp->ccw_count);
         /* stop any I/O and post status and return error status */
-//      chp->chan_byte = BUFF_EMPTY;        /* there is no data to read/store */
-//      chp->ccw_count = 0;                 /* zero the count */
-        chp->ccw_flags &= ~(FLAG_DC|FLAG_CC);/* stop any chaining */
-        uptr->CMD &= LMASK;                 /* make non-busy */
-        uptr->SNS2 |= (SNS_ONC|SNS_UNR);    /* on cylinder & ready */
-        sim_cancel(uptr);                   /* clear the input timer */
-        sim_debug(DEBUG_CMD, dptr,
+        chp->ccw_flags &= ~(FLAG_DC|FLAG_CC);   /* stop any chaining */
+        uptr->CMD &= LMASK;                     /* make non-busy */
+        uptr->SNS2 |= (SNS_ONC|SNS_UNR);        /* on cylinder & ready */
+        sim_cancel(uptr);                       /* clear the input timer */
+        sim_debug(DEBUG_EXP, dptr,
             "disk_haltio HIO I/O stop chsa %04x cmd = %02x CHS %08x STAR %08x\n",
             chsa, cmd, uptr->CHS, uptr->STAR);
-//1204  chan_end(chsa, SNS_CHNEND|SNS_DEVEND);  /* force end */
         chan_end(chsa, SNS_CHNEND|SNS_DEVEND|SNS_UNITEXP);  /* force end */
         return SCPE_IOERR;
     }
-    uptr->CMD &= LMASK;                     /* make non-busy */
-    uptr->SNS2 |= (SNS_ONC|SNS_UNR);        /* on cylinder & ready */
-    sim_debug(DEBUG_CMD, dptr,
+    uptr->CMD &= LMASK;                         /* make non-busy */
+    uptr->SNS2 |= (SNS_ONC|SNS_UNR);            /* on cylinder & ready */
+//  sim_debug(DEBUG_EXP, dptr,
+    sim_debug(DEBUG_DETAIL, dptr,
         "disk_haltio HIO I/O not busy chsa %04x cmd = %02x\n", chsa, cmd);
-    return SCPE_OK;                         /* not busy */
+    return SCPE_OK;                             /* not busy */
 }
 
 /* Handle processing of disk requests. */
@@ -1101,7 +1124,7 @@ t_stat disk_srv(UNIT *uptr)
     int             unit = (uptr - dptr->units);
     int             len = chp->ccw_count;
     int             i,j,k;
-    uint32          mema, ecc, cecc;                /* memory address / ecc */
+    uint32          mema, ecc, cecc;            /* memory address / ecc */
     uint8           ch;
     uint16          ssize = disk_type[type].ssiz * 4;   /* disk sector size in bytes */
     uint32          tstart;
@@ -1109,7 +1132,8 @@ t_stat disk_srv(UNIT *uptr)
     uint8           buf[1024];
     uint8           buf2[1024];
 
-    sim_debug(DEBUG_CMD, dptr,
+//  sim_debug(DEBUG_CMD, dptr,
+    sim_debug(DEBUG_DETAIL, dptr,
         "disk_srv entry unit %02x CMD %08x chsa %04x count %04x %x/%x/%x \n",
         unit, uptr->CMD, chsa, chp->ccw_count,
         STAR2CYL(uptr->CHS), (uptr->CHS >> 8)&0xff, (uptr->CHS&0xff));
@@ -1122,7 +1146,8 @@ t_stat disk_srv(UNIT *uptr)
         }
     }
 
-    sim_debug(DEBUG_CMD, dptr,
+//  sim_debug(DEBUG_CMD, dptr,
+    sim_debug(DEBUG_DETAIL, dptr,
         "disk_srv cmd=%02x chsa %04x count %04x\n", cmd, chsa, chp->ccw_count);
 
     switch (cmd) {
@@ -1138,10 +1163,10 @@ t_stat disk_srv(UNIT *uptr)
             chp->chan_inch_addr, chsa, mema, chp->ccw_count);
         /* to use this inch method, byte count must be 897 */
         if (len != 896) {
-                /* we have invalid count, error, bail out */
-                uptr->SNS |= SNS_CMDREJ;
-                chan_end(chsa, SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-                break;
+            /* we have invalid count, error, bail out */
+            uptr->SNS |= SNS_CMDREJ;
+            chan_end(chsa, SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
+            break;
         }
         /* now call set_inch() function to write and test inch buffer addresses */
         tstart = set_inch(uptr, mema);          /* new address */
@@ -1242,8 +1267,8 @@ t_stat disk_srv(UNIT *uptr)
         ch = ((2*SPT(type))-1) & 0x3f;          /* get index cnt */
         uptr->SNS2 = (uptr->SNS2 & 0xc0ff) | ((((uint32)ch) & 0x3f) << 8);
         sim_debug(DEBUG_CMD, dptr,
-           "disk_srv RAP %02x cyl %04x trk %02x sec %02x\n",
-           ch, cyl&0xffff, trk, sec);
+            "disk_srv RAP %02x cyl %04x trk %02x sec %02x\n",
+            ch, cyl&0xffff, trk, sec);
 
         if (chan_write_byte(chsa, &ch)) {       /* put a byte to memory */
             sim_debug(DEBUG_CMD, dptr,
@@ -1255,7 +1280,6 @@ t_stat disk_srv(UNIT *uptr)
             } else
                 chan_end(chsa, SNS_CHNEND|SNS_DEVEND);
             break;
-//          return SCPE_OK;
         }
         chan_end(chsa, SNS_CHNEND|SNS_DEVEND);  /* return OK */
         break;
@@ -1286,7 +1310,6 @@ t_stat disk_srv(UNIT *uptr)
                 uptr->SNS2 |= (SNS_SKER|SNS_SEND);
                 chan_end(chsa, SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);  /* error */
                 break;
-//              return SCPE_OK;
             }
         }
 
@@ -1331,15 +1354,15 @@ iha_error:
         }
         /* create offset and mask */
         ecc = dmle_ecc32(obuf, ssize);          /* calc ecc for original sector */
-            sim_debug(DEBUG_CMD, dptr,
-                "disk_srv DEC old obuf data %02x%02x%02x%02x %02x%02x%02x%02x\n",
-                obuf[1016], obuf[1017], obuf[1018], obuf[1019],
-                obuf[1020], obuf[1021], obuf[1022], obuf[1023]);
+        sim_debug(DEBUG_DETAIL, dptr,
+            "disk_srv DEC old obuf data %02x%02x%02x%02x %02x%02x%02x%02x\n",
+            obuf[1016], obuf[1017], obuf[1018], obuf[1019],
+            obuf[1020], obuf[1021], obuf[1022], obuf[1023]);
         cecc = dmle_ecc32(bbuf, ssize);         /* calc ecc for bad sector */
-            sim_debug(DEBUG_CMD, dptr,
-                "disk_srv DEC bad bbuf data %02x%02x%02x%02x %02x%02x%02x%02x\n",
-                bbuf[1016], bbuf[1017], bbuf[1018], bbuf[1019],
-                bbuf[1020], bbuf[1021], bbuf[1022], bbuf[1023]);
+        sim_debug(DEBUG_DETAIL, dptr,
+            "disk_srv DEC bad bbuf data %02x%02x%02x%02x %02x%02x%02x%02x\n",
+            bbuf[1016], bbuf[1017], bbuf[1018], bbuf[1019],
+            bbuf[1020], bbuf[1021], bbuf[1022], bbuf[1023]);
         mema = 0;
         for (i=0, j=0; i<ssize; i++) {
             tcyl = bbuf[i]^obuf[i];             /* see if byte are different */
@@ -1402,7 +1425,7 @@ iha_error:
 
         /* count must be 12 or 14, if not prog check */
         if (len != 12 && len != 14) {
-            sim_debug(DEBUG_CMD, dptr,
+            sim_debug(DEBUG_EXP, dptr,
                 "disk_srv Sense bad count unit=%02x count%04x\n", unit, len);
             uptr->CMD &= LMASK;                 /* remove old status bits & cmd */
             chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_PCHK|STATUS_LENGTH);
@@ -1470,7 +1493,6 @@ iha_error:
         /* TODO add drive status bits here */
         if ((test_write_byte_end(chsa)) == 0) {
             /* bytes 12 & 13 contain drive related status */
-//          ch = 0xc0;                          /* seek end and unit selected for now */
             uptr->SNS2 |= (SNS_SEND|SNS_USEL);  /* selected & seek end */
             /* bits 2-7 have sector pulse count */
             ch = ((sec * 2) % SPT(type)) & 0x3f;/* get index cnt */
@@ -1539,7 +1561,7 @@ iha_error:
             unit, buf[0], buf[1], buf[2], buf[3]);
 
         if (len > 4) {
-            sim_debug(DEBUG_CMD, dptr,
+            sim_debug(DEBUG_EXP, dptr,
                 "disk_srv SEEK bad count unit %02x count %04x\n", unit, len);
             uptr->CMD &= LMASK;                 /* remove old status bits & cmd */
             chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_PCHK|STATUS_LENGTH);
@@ -1552,7 +1574,7 @@ iha_error:
                 if (chp->chan_status & STATUS_PCHK) /* test for memory error */
                     uptr->SNS |= SNS_INAD;      /* invalid address */
                 if (i == 0) {
-                    sim_debug(DEBUG_DETAIL, dptr,
+                    sim_debug(DEBUG_EXP, dptr,
                         "disk_srv seek error unit=%02x star %02x %02x %02x %02x\n",
                         unit, buf[0], buf[1], buf[2], buf[3]);
                     /* we have error, bail out */
@@ -1626,9 +1648,9 @@ iha_error:
         /* calc the new sector address of data */
         /* calculate file position in bytes of requested sector */
         /* set new STAR value using new values */
-/*05*/  uptr->STAR = CHS2STAR(cyl, trk, sec);
+        uptr->STAR = CHS2STAR(cyl, trk, sec);
         /* file offset in bytes to std or alt track */
-/*05*/  tstart = STAR2SEC(uptr->STAR, SPT(type), SPC(type)) * SSB(type);
+        tstart = STAR2SEC(uptr->STAR, SPT(type), SPC(type)) * SSB(type);
 
         sim_debug(DEBUG_DETAIL, dptr,
             "disk_srv seek start %04x cyl %04x trk %02x sec %02x CHS %08x\n",
@@ -1640,7 +1662,6 @@ iha_error:
             uptr->CMD &= LMASK;                   /* remove old status bits & cmd */
             chan_end(chsa, SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
             break;
-//          return SCPE_OK;
         }
 
         /* Check if already on correct cylinder */
@@ -1673,10 +1694,8 @@ iha_error:
             chan_end(chsa, SNS_DEVEND|SNS_CHNEND);
         }
         break;
-//      return SCPE_OK;
 
     case DSK_XEZ:   /* 0x37 */                  /* Rezero & Read IPL record */
-
         sim_debug(DEBUG_CMD, dptr, "XEZ REZERO IPL unit=%02x seek 0\n", unit);
         /* Do a seek to 0 */
         uptr->STAR = 0;                         /* set STAR to 0, 0, 0 */
@@ -1691,13 +1710,11 @@ iha_error:
             uptr->CMD &= LMASK;                 /* remove old status bits & cmd */
             chan_end(chsa, SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
             break;
-//          return SCPE_OK;
         }
         /* we are on cylinder/track/sector zero, so go on */
         sim_debug(DEBUG_DETAIL, dptr, "disk_srv done seek trk 0\n");
         uptr->CMD &= LMASK;                     /* remove old status bits & cmd */
         chan_end(chsa, SNS_DEVEND|SNS_CHNEND);
-//      return SCPE_OK;
         break;
 
     case DSK_LMR:   /* 0x1F */
@@ -1744,7 +1761,6 @@ iha_error:
         if (len <= 1) {
             uptr->SNS |= SNS_CMDREJ;            /* cmd rejected */
             chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_PCHK);
-//          return SCPE_OK;
             break;
         }
         /* Read in 2-4 character tess code */
@@ -1762,7 +1778,6 @@ iha_error:
                         chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_PCHK);
                     else
                         chan_end(chsa, SNS_CHNEND|SNS_DEVEND);
-//                  chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_PCHK);
                     return SCPE_OK;
                     break;
                 }
@@ -1797,7 +1812,6 @@ iha_error:
             unit, buf[0], buf[1], buf[2], buf[3]);
 
         chan_end(chsa, tstart);
-//      return SCPE_OK;
         break;
 
     case DSK_FNSK:                              /* 0x0B Format for no skip */
@@ -1813,7 +1827,6 @@ iha_error:
         /* now read sector label data */
         len = chp->ccw_count;
         for (i = 0; i < len; i++) {
-//0906  for (i = 0; i < 30; i++) {
             if (chan_read_byte(chsa, &buf[i])) {
                 if (chp->chan_status & STATUS_PCHK) /* test for memory error */
                     uptr->SNS |= SNS_INAD;      /* invalid address */
@@ -1829,8 +1842,6 @@ iha_error:
         }
         sim_debug(DEBUG_DETAIL, dptr, "\n");
         chan_end(chsa, SNS_CHNEND|SNS_DEVEND);
-//      chan_end(chsa, SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-//      return SCPE_OK;
         break;
 
     case DSK_RD:                                /* Read Data command 0x02 */
@@ -1855,7 +1866,7 @@ iha_error:
             if ((tempt == 0) && (uptr->STAR != 0)) {
                 /* we have error */
                 sim_debug(DEBUG_EXP, dptr,
-                    "disk_srv READ get_dmatrk return error tempt %06x tstart %06x\n", tempt, tstart);
+                    "disk_srv READ1 get_dmatrk return error tempt %06x tstart %06x\n", tempt, tstart);
                 uptr->CMD &= LMASK;             /* remove old status bits & cmd */
                 uptr->SNS |= SNS_DADE;          /* set error status */
                 uptr->SNS2 |= (SNS_SKER|SNS_SEND);
@@ -1869,7 +1880,7 @@ iha_error:
                 uptr->SNS |= SNS_DADE;          /* disk addr error */
                 uptr->CMD &= LMASK;             /* remove old status bits & cmd */
                 sim_debug(DEBUG_EXP, dptr,
-                    "disk_srv READ get_dmatrk return spare tempt %06x tstart %06x\n", tempt, tstart);
+                    "disk_srv READ2 get_dmatrk return spare tempt %06x tstart %06x\n", tempt, tstart);
                 chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_PCHK);
                 break;
             }
@@ -1889,7 +1900,6 @@ iha_error:
                 uptr->CMD &= LMASK;             /* remove old status bits & cmd */
                 chan_end(chsa, SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
                 break;
-//              return SCPE_OK;
             }
 
             sim_debug(DEBUG_CMD, dptr,
@@ -1898,7 +1908,7 @@ iha_error:
 
             /* read in a sector of data from disk */
             if ((len=sim_fread(buf, 1, ssize, uptr->fileref)) != ssize) {
-                sim_debug(DEBUG_CMD, dptr,
+                sim_debug(DEBUG_EXP, dptr,
                     "Error %08x on read %04x of diskfile cyl %04x hds %02x sec %02x\n",
                     len, ssize, ((uptr->CHS)>>16)&0xffff, ((uptr->CHS)>>8)&0xff, (uptr->CHS)&0xff);
                 uptr->CMD &= LMASK;             /* remove old status bits & cmd */
@@ -1909,8 +1919,8 @@ iha_error:
             sim_debug(DEBUG_CMD, dptr,
                 "disk_srv after READ chsa %04x buffer %06x count %04x\n",
                 chsa, chp->ccw_addr, chp->ccw_count);
-            sim_debug(DEBUG_CMD, dptr,
-                "hsdp_srv READ data %02x%02x%02x%02x %02x%02x%02x%02x "
+            sim_debug(DEBUG_DETAIL, dptr,
+                "disk_srv READ data %02x%02x%02x%02x %02x%02x%02x%02x "
                 "%02x%02x%02x%02x %02x%02x%02x%02x\n",
                 buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
                 buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15]);
@@ -1918,12 +1928,11 @@ iha_error:
             uptr->CHS++;                        /* next sector number */
             /* process the next sector of data */
             for (i=0; i<len; i++) {
-//0906      for (i=0; i<ssize; i++) {
                 ch = buf[i];                    /* get a char from buffer */
                 if (chan_write_byte(chsa, &ch)) {   /* put a byte to memory */
                     if (chp->chan_status & STATUS_PCHK) /* test for memory error */
                         uptr->SNS |= SNS_INAD;  /* invalid address */
-                    sim_debug(DEBUG_CMD, dptr,
+                    sim_debug(DEBUG_EXP, dptr,
                         "DISK Read %04x bytes leaving %04x from diskfile %04x/%02x/%02x\n",
                         i, chp->ccw_count, ((uptr->CHS)>>16)&0xffff,
                         ((uptr->CHS)>>8)&0xff, (uptr->CHS)&0xff);
@@ -1939,17 +1948,17 @@ iha_error:
             /* get current sector offset */
             j = STAR2SEC(tempt, SPT(type), SPC(type));  /* current sector */
             i = ((CYL(type) - 3) * HDS(type)) * SPT(type);  /* diag start */
-            sim_debug(DEBUG_CMD, dptr,
+            sim_debug(DEBUG_DETAIL, dptr,
                 "disk_srv after READ j %04x i %04x j-i %04x CAP %06x DIAG %06x\n",
                 j, i, j-i, CAP(type), (((CYL(type) - 3) * HDS(type)) * SPT(type)));    /* diag start */
             if (j >= i) {                       /* only do diag sectors */
                 cecc = dmle_ecc32(buf, ssize);  /* calc ecc for sector */
-                sim_debug(DEBUG_CMD, dptr,
+                sim_debug(DEBUG_DETAIL, dptr,
                     "ECC j %02x i %02x data calc Old %08x Cur %08x cyl %04x hds %02x sec %02x\n",
                     j, i, decc[j-i], cecc, STAR2CYL(tempt), ((tempt) >> 8)&0xff, (tempt&0xff));
                 if ((decc[j-i] != 0) && (cecc != decc[j-i])) {     /* test against old */
                     /* checksum error */
-                    sim_debug(DEBUG_CMD, dptr,
+                    sim_debug(DEBUG_EXP, dptr,
                         "ECC j %02x i %02x data error Old %08x New %08x cyl %04x hds %02x sec %02x\n",
                         j, i, decc[j-i], cecc, STAR2CYL(tempt), ((tempt) >> 8)&0xff, (tempt&0xff));
                     uptr->SNS |= SNS_ECCD;      /* data ECC error */
@@ -1989,14 +1998,13 @@ iha_error:
                 ssize, chp->ccw_count, chp->ccw_addr,
                 ((uptr->CHS)>>16)&0xffff, ((uptr->CHS)>>8)&0xff, (uptr->CHS)&0xff);
 
-////        uptr->CHS++;                        /* next sector number */
             /* get sector offset */
             tstart = STAR2SEC(uptr->CHS, SPT(type), SPC(type));
 
             /* see if over end of disk */
             if (tstart >= (uint32)CAP(type)) {
                 /* EOM reached, abort */
-                sim_debug(DEBUG_CMD, dptr,
+                sim_debug(DEBUG_EXP, dptr,
                     "DISK Read reached EOM for read from disk @ /%04x/%02x/%02x\n",
                     STAR2CYL(uptr->CHS), (uptr->CHS >> 8)&0xff, (uptr->CHS&0xff));
                 uptr->CMD &= LMASK;             /* remove old status bits & cmd */
@@ -2061,7 +2069,8 @@ iha_error:
             if ((tempt == 0) && (uptr->STAR != 0)) {
                 /* we have error */
                 sim_debug(DEBUG_EXP, dptr,
-                    "disk_srv WRITE get_dmatrk return error tempt %06x tstart %06x\n", tempt, tstart);
+                    "disk_srv WRITE get_dmatrk return error tempt %06x tstart %06x\n",
+                    tempt, tstart);
                 uptr->CMD &= LMASK;             /* remove old status bits & cmd */
                 uptr->SNS |= SNS_DADE;          /* set error status */
                 uptr->SNS2 |= (SNS_SKER|SNS_SEND);
@@ -2072,7 +2081,6 @@ iha_error:
 
             uptr->SNS &= ~SNS_DEFTRK;           /* remove defective flag */
             /* see if spare track */
-//was       if (lbuf[4] & 0x30) {               /* see if spare or reserved track */
             if (lbuf[4] & 0x20) {               /* see if spare track */
                 uptr->SNS |= SNS_DADE;          /* disk addr error */
                 chp->chan_status |= STATUS_PCHK; /* channel prog check */
@@ -2106,7 +2114,7 @@ iha_error:
                     /* if error on reading 1st byte, we are done writing */
                     if ((i == 0) || (chp->chan_status & STATUS_PCHK)) {
                         uptr->CMD &= LMASK;     /* remove old status bits & cmd */
-                        sim_debug(DEBUG_CMD, dptr,
+                        sim_debug(DEBUG_EXP, dptr,
                             "DISK Wrote %04x bytes to diskfile cyl %04x hds %02x sec %02x\n",
                             ssize, STAR2CYL(uptr->CHS), ((uptr->CHS) >> 8)&0xff, (uptr->CHS&0xff));
                         if (chp->chan_status & STATUS_PCHK) /* test for memory error */
@@ -2128,7 +2136,7 @@ iha_error:
 
             /* write the sector to disk */
             if ((i=sim_fwrite(buf2, 1, ssize, uptr->fileref)) != ssize) {
-                sim_debug(DEBUG_CMD, dptr,
+                sim_debug(DEBUG_EXP, dptr,
                     "Error %08x on write %04x bytes to diskfile cyl %04x hds %02x sec %02x\n",
                     i, ssize, STAR2CYL(uptr->CHS), ((uptr->CHS) >> 8)&0xff, (uptr->CHS&0xff));
                 uptr->CMD &= LMASK;             /* remove old status bits & cmd */
@@ -2137,26 +2145,26 @@ iha_error:
             }
 
             sim_debug(DEBUG_CMD, dptr,
-                "hsdp_srv after WRITE buffer %06x count %04x\n",
+                "disk_srv after WRITE buffer %06x count %04x\n",
                 chp->ccw_addr, chp->ccw_count);
-            sim_debug(DEBUG_CMD, dptr,
-                "hsdp_srv WRITE data %02x%02x%02x%02x %02x%02x%02x%02x "
+            sim_debug(DEBUG_DETAIL, dptr,
+                "disk_srv WRITE data %02x%02x%02x%02x %02x%02x%02x%02x "
                 "%02x%02x%02x%02x %02x%02x%02x%02x\n",
                 buf2[0], buf2[1], buf2[2], buf2[3], buf2[4], buf2[5], buf2[6], buf2[7],
                 buf2[8], buf2[9], buf2[10], buf2[11], buf2[12], buf2[13], buf2[14], buf2[15]);
-            sim_debug(DEBUG_CMD, dptr,
+            sim_debug(DEBUG_DETAIL, dptr,
                 "disk_srv after WRITE CAP %06x DIAG %06x\n",
                 CAP(type), (((CYL(type) - 3) * HDS(type)) * SPT(type)));    /* diag start */
 
             /* get current sector offset */
             j = STAR2SEC(tempt, SPT(type), SPC(type));  /* current sector */
             i = ((CYL(type) - 3) * HDS(type)) * SPT(type);  /* diag start */
-            sim_debug(DEBUG_CMD, dptr,
+            sim_debug(DEBUG_DETAIL, dptr,
                 "disk_srv after WRITE j %04x i %04x j-i %04x CAP %06x DIAG %06x\n",
                 j, i, j-i, CAP(type), (((CYL(type) - 3) * HDS(type)) * SPT(type)));    /* diag start */
             if (j >= i) {                       /* only do diag sectors */
                 cecc = dmle_ecc32(buf2, ssize); /* calc ecc for sector */
-                sim_debug(DEBUG_CMD, dptr,
+                sim_debug(DEBUG_DETAIL, dptr,
                     "ECC j %02x i %02x data write Old %08x Cur %08x cyl %04x hds %02x sec %02x\n",
                     j, i, decc[j-i], cecc, STAR2CYL(tempt), ((tempt) >> 8)&0xff, (tempt&0xff));
                 decc[j-i] = cecc;               /* set new ecc */
@@ -2170,7 +2178,7 @@ iha_error:
                     bbuf[i] = buf2[i];          /* save bad buffer */
                 cecc = dmle_ecc32(buf2, ssize); /* calc ecc for sector */
                 ecc = 0;
-                sim_debug(DEBUG_CMD, dptr,
+                sim_debug(DEBUG_DETAIL, dptr,
                     "Writing decc[%04x] ECC %08x cyl %04x hds %02x sec %02x\n",
                     j, cecc, STAR2CYL(uptr->CHS), ((uptr->CHS) >> 8)&0xff, (uptr->CHS&0xff));
                 /* set ECC value here */
@@ -2187,7 +2195,7 @@ iha_error:
                     ecc |= ((ch & 0xff) << ((3-i)*8));
                 }
                 tcyl++;                         /* show we have no more data to write */
-                sim_debug(DEBUG_CMD, dptr,
+                sim_debug(DEBUG_DETAIL, dptr,
                     "Write decc[%04x] ECC=%08x from diags, calc ECC=%08x cyl %04x hds %02x sec %02x\n",
                     j, ecc, cecc, STAR2CYL(uptr->CHS), ((uptr->CHS) >> 8)&0xff, (uptr->CHS&0xff));
                 decc[j] = ecc;                  /* set new ecc from diag */
@@ -2212,7 +2220,7 @@ iha_error:
             /* see if over end of disk */
             if (tstart >= (uint32)CAP(type)) {
                 /* EOM reached, abort */
-                sim_debug(DEBUG_CMD, dptr,
+                sim_debug(DEBUG_EXP, dptr,
                     "DISK Write reached EOM for write to disk @ %04x/%02x/%02x\n",
                     STAR2CYL(uptr->CHS), (uptr->CHS >> 8)&0xff, (uptr->CHS&0xff));
                 uptr->CMD &= LMASK;             /* remove old status bits & cmd */
@@ -2254,7 +2262,8 @@ iha_error:
         len = chp->ccw_count;                   /* get number bytes to read */
         mema = uptr->CHS+(len/30);              /* save address */
 
-        sim_debug(DEBUG_DETAIL, dptr, "before RSL Sector %x len %x\n", uptr->CHS, len);
+        sim_debug(DEBUG_DETAIL, dptr,
+            "before RSL Sector %x len %x\n", uptr->CHS, len);
 
         /* read a 30 byte track label for each sector on track */
         /* for 16 sectors per track, that is 480 bytes */
@@ -2272,18 +2281,20 @@ iha_error:
             sec = uptr->CHS & 0xff;             /* get sec */
             seeksec = tstart;                   /* save sector number */
 
-            sim_debug(DEBUG_EXP, dptr, "disk_srv RSL cyl %04x trk %02x sec %02x sector# %06x\n",
+            sim_debug(DEBUG_EXP, dptr,
+                "disk_srv RSL cyl %04x trk %02x sec %02x sector# %06x\n",
                 cyl, trk, sec, seeksec);
 
             /* seek sector label area after end of track label area */
             tstart = CAPB(type) + (CYL(type)*HDS(type)*30) + (tstart*30);
 
             /* file offset in bytes to sector label */
-            sim_debug(DEBUG_EXP, dptr, "disk_srv RSL SEEK on seek to %08x\n", tstart);
+            sim_debug(DEBUG_EXP, dptr,
+                "disk_srv RSL SEEK on seek to %08x\n", tstart);
 
             /* seek to the location where we will read sector label */
             if ((sim_fseek(uptr->fileref, tstart, SEEK_SET)) != 0) {
-                sim_debug(DEBUG_CMD, dptr,
+                sim_debug(DEBUG_EXP, dptr,
                     "Error seeking sector label area at sect %06x offset %08x\n",
                     seeksec, tstart);
                 uptr->CMD &= LMASK;             /* remove old status bits & cmd */
@@ -2294,7 +2305,7 @@ iha_error:
 
             /* read in a sector label from disk */
             if (sim_fread(buf, 1, 30, uptr->fileref) != 30) {
-                sim_debug(DEBUG_CMD, dptr,
+                sim_debug(DEBUG_EXP, dptr,
                     "Error %08x on read %04x of diskfile cyl %04x hds %02x sec %02x\n",
                     len, 30, ((uptr->CHS)>>16)&0xffff, ((uptr->CHS)>>8)&0xff, (uptr->CHS)&0xff);
                 uptr->CMD &= LMASK;             /* remove old status bits & cmd */
@@ -2345,7 +2356,6 @@ iha_error:
         /* Write sector label to disk */
         /* write 30 bytes, b0-b1=cyl, b1=trk, b2=sec */
         len = chp->ccw_count;                   /* get number bytes to read */
-//      mema = uptr->CHS+(len/30);              /* save address */
         mema = uptr->CHS;                       /* save address */
 
         sim_debug(DEBUG_DETAIL, dptr, "before WSL Sector %x len %x\n", uptr->CHS, len);
@@ -2381,7 +2391,6 @@ iha_error:
                 chp->ccw_count = len;           /* restore number bytes to read */
                 uptr->CMD &= LMASK;             /* remove old status bits & cmd */
                 chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_PCHK);
-//              chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_LENGTH);
                 return SCPE_OK;
                 break;
             }
@@ -2397,18 +2406,18 @@ iha_error:
             sec = uptr->CHS & 0xff;             /* get sec */
             seeksec = tstart;                   /* save sector number */
 
-            sim_debug(DEBUG_EXP, dptr, "disk_srv WSL cyl %04x trk %02x sec %02x sector# %06x\n",
+            sim_debug(DEBUG_CMD, dptr, "disk_srv WSL cyl %04x trk %02x sec %02x sector# %06x\n",
                 cyl, trk, sec, seeksec);
 
             /* seek sector label area after end of track label area */
             tstart = CAPB(type) + (CYL(type)*HDS(type)*30) + (tstart*30);
 
             /* file offset in bytes to sector label */
-            sim_debug(DEBUG_EXP, dptr, "disk_srv WSL SEEK on seek to %08x\n", tstart);
+            sim_debug(DEBUG_CMD, dptr, "disk_srv WSL SEEK on seek to %08x\n", tstart);
 
             /* seek to the location where we will write sector label */
             if ((sim_fseek(uptr->fileref, tstart, SEEK_SET)) != 0) {
-                sim_debug(DEBUG_CMD, dptr,
+                sim_debug(DEBUG_EXP, dptr,
                     "Error seeking sector label area at sect %06x offset %08x\n",
                     seeksec, tstart);
                 uptr->CHS = mema;               /* restore address */
@@ -2420,7 +2429,7 @@ iha_error:
 
             /* write sector label to disk */
             if (sim_fwrite(buf, 1, 30, uptr->fileref) != 30) {
-                sim_debug(DEBUG_CMD, dptr,
+                sim_debug(DEBUG_EXP, dptr,
                     "Error %08x on write %04x of diskfile cyl %04x hds %02x sec %02x\n",
                     len, 30, ((uptr->CHS)>>16)&0xffff, ((uptr->CHS)>>8)&0xff, (uptr->CHS)&0xff);
                 uptr->CHS = mema;               /* restore address */
@@ -2471,14 +2480,14 @@ iha_error:
 
         /* get track number */
         tstart = (cyl * HDS(type)) + trk;
-        sim_debug(DEBUG_EXP, dptr, "disk_srv RTL cyl %4x(%d) trk %x sec# %06x\n",
+        sim_debug(DEBUG_CMD, dptr, "disk_srv RTL cyl %4x(%d) trk %x sec# %06x\n",
             cyl, cyl, trk, tstart);
 
         /* calc offset in file to track label */
         tstart = CAPB(type) + (tstart * 30);
 
         /* file offset in bytes */
-        sim_debug(DEBUG_EXP, dptr, "disk_srv RTL SEEK on seek to %06x\n", tstart);
+        sim_debug(DEBUG_CMD, dptr, "disk_srv RTL SEEK on seek to %06x\n", tstart);
 
         /* seek to the location where we will r/w track label */
         if ((sim_fseek(uptr->fileref, tstart, SEEK_SET)) != 0) {  /* do seek */
@@ -2490,7 +2499,7 @@ iha_error:
 
         /* read in a track label from disk */
         if ((len=sim_fread(buf, 1, 30, uptr->fileref)) != 30) {
-            sim_debug(DEBUG_CMD, dptr,
+            sim_debug(DEBUG_EXP, dptr,
                 "Error %08x on read %04x of diskfile cyl %04x hds %02x sec %02x\n",
                 len, 30, ((uptr->CHS)>>16)&0xffff, ((uptr->CHS)>>8)&0xff, (uptr->CHS)&0xff);
             uptr->CMD &= LMASK;                 /* remove old status bits & cmd */
@@ -2534,7 +2543,7 @@ iha_error:
         /* Write track zero to set disk geometry */
         /* write 30 bytes, b0-b1=cyl, b1=trk, b2=sec */
 
-        sim_debug(DEBUG_EXP, dptr, "disk_srv WTL start cnt %04x CHS %08x\n",
+        sim_debug(DEBUG_DETAIL, dptr, "disk_srv WTL start cnt %04x CHS %08x\n",
             chp->ccw_count, uptr->CHS);
 
         /* get file offset in sectors */
@@ -2549,14 +2558,14 @@ iha_error:
 
         /* get track number */
         tstart = (cyl * HDS(type)) + trk;
-        sim_debug(DEBUG_EXP, dptr, "disk_srv WTL cyl %4x trk %x track# %06x CHS %08x\n",
+        sim_debug(DEBUG_CMD, dptr, "disk_srv WTL cyl %4x trk %x track# %06x CHS %08x\n",
             cyl, trk, tstart, uptr->CHS);
 
         /* calc offset in file to track label */
         tstart = CAPB(type) + (tstart * 30);
 
         /* file offset in bytes */
-        sim_debug(DEBUG_EXP, dptr, "disk_srv WTL SEEK on seek to %06x\n", tstart);
+        sim_debug(DEBUG_CMD, dptr, "disk_srv WTL SEEK on seek to %06x\n", tstart);
 
         /* seek to the location where we will write track label */
         if ((sim_fseek(uptr->fileref, tstart, SEEK_SET)) != 0) {  /* do seek */
@@ -2595,7 +2604,7 @@ iha_error:
 
         /* write out a track label to disk */
         if ((len=sim_fwrite(buf, 1, 30, uptr->fileref)) != 30) {
-            sim_debug(DEBUG_CMD, dptr,
+            sim_debug(DEBUG_EXP, dptr,
                 "Error %08x on write %04x of diskfile cyl %04x hds %02x sec %02x\n",
                 len, 30, ((uptr->CHS)>>16)&0xffff, ((uptr->CHS)>>8)&0xff, (uptr->CHS)&0xff);
             uptr->CHS = mema;                   /* restore address */
@@ -2626,7 +2635,7 @@ iha_error:
         break;
 
     default:
-        sim_debug(DEBUG_CMD, dptr, "invalid command %02x unit %02x\n", cmd, unit);
+        sim_debug(DEBUG_EXP, dptr, "invalid command %02x unit %02x\n", cmd, unit);
         uptr->SNS |= SNS_CMDREJ;
         uptr->CMD &= LMASK;                     /* remove old status bits & cmd */
         chan_end(chsa, SNS_CHNEND|STATUS_PCHK); /* return Prog Check */
@@ -2638,11 +2647,25 @@ iha_error:
     return SCPE_OK;
 }
 
+/* handle rschnlio cmds for disk */
+t_stat  disk_rschnlio(UNIT *uptr) {
+    DEVICE  *dptr = get_dev(uptr);
+    uint16  chsa = GET_UADDR(uptr->CMD);
+    int     cmd = uptr->CMD & DSK_CMDMSK;
+
+    sim_debug(DEBUG_EXP, dptr,
+        "disk_rschnl chsa %04x cmd = %02x\n", chsa, cmd);
+    disk_ini(uptr, 0);                          /* reset the unit */
+    return SCPE_OK;
+}
+
 /* initialize the disk */
 void disk_ini(UNIT *uptr, t_bool f)
 {
     DEVICE  *dptr = get_dev(uptr);
+    int     unit = (uptr - dptr->units);        /* get the UNIT number */
     int     i = GET_TYPE(uptr->flags);
+    int     cn;
 
     /* start out at sector 0 */
     uptr->CHS = 0;                              /* set CHS to cyl/hd/sec = 0 */
@@ -2650,8 +2673,15 @@ void disk_ini(UNIT *uptr, t_bool f)
     uptr->CMD &= LMASK;                         /* remove old status bits & cmd */
     /* total sectors on disk */
     uptr->capac = CAP(i);                       /* size in sectors */
+    sim_cancel(uptr);                           /* stop any timers */
+    /* reset track cache */
+    for (cn=0; cn<TRK_CACHE; cn++) {
+        tkl_label[unit].tkl[cn].track = 0;
+        tkl_label[unit].tkl[cn].age = 0;
+    }
 
-    sim_debug(DEBUG_EXP, &dda_dev, "DMA init device %s on unit DMA%04x cap %x %d\n",
+    sim_debug(DEBUG_EXP, dptr,
+        "DMA init device %s on unit DMA%04x cap %x %d\n",
         dptr->name, GET_UADDR(uptr->CMD), uptr->capac, uptr->capac);
 }
 
@@ -2685,13 +2715,13 @@ int disk_label(UNIT *uptr) {
     int         type = GET_TYPE(uptr->flags);
     DEVICE      *dptr = get_dev(uptr);
     uint32      trk, cyl, sec;
-    uint32      ssize = SSB(type);                  /* disk sector size in bytes */
-    uint32      tsize = SPT(type);                  /* get track size in sectors */
-    uint32      tot_tracks = TRK(type);             /* total tracks on disk */
-    uint32      tot_sectors = CAP(type);            /* total number of sectors on disk */
-    uint32      cap = CAP(type);                    /* disk capacity in sectors */
-    uint32      CHS;                                /* cyl, hds, sec format */
-    uint8       label[34];                          /* track/sector label */
+    uint32      ssize = SSB(type);              /* disk sector size in bytes */
+    uint32      tsize = SPT(type);              /* get track size in sectors */
+    uint32      tot_tracks = TRK(type);         /* total tracks on disk */
+    uint32      tot_sectors = CAP(type);        /* total number of sectors on disk */
+    uint32      cap = CAP(type);                /* disk capacity in sectors */
+    uint32      CHS;                            /* cyl, hds, sec format */
+    uint8       label[34];                      /* track/sector label */
     int32       i, j;
                 /* get sector address of vendor defect table VDT */
                 /* put data = 0xf0000000 0xf4000000 */
@@ -2702,14 +2732,17 @@ int disk_label(UNIT *uptr) {
     int32       daddr = (CYL(type)-4) * SPC(type) + (HDS(type)-2) * SPT(type);
                 /* get sector address of utx flaw map sec 1 pointer */
                 /* use this address for sec 1 label pointer */
-//28int32       uaddr = (CYL(type)-4) * SPC(type) + (HDS(type)-3) * SPT(type);
+#ifndef NOT_NEEDED_0128
     int32       uaddr = (CYL(type)-4) * SPC(type) + (HDS(type)-4) * SPT(type);
+#else
+    int32       uaddr = (CYL(type)-4) * SPC(type) + (HDS(type)-3) * SPT(type);
+#endif
 
     /* write 30 byte track labels for all tracks on disk */
     /* tot_tracks entries will be created starting at end of disk */
     /* seek first sector after end of disk data */
     if ((sim_fseek(uptr->fileref, CAPB(type), SEEK_SET)) != 0) {
-        sim_debug(DEBUG_CMD, dptr,
+        sim_debug(DEBUG_EXP, dptr,
             "Error seeking track label area at sect %06x offset %06x\n",
             CAP(type), CAPB(type));
         return 1;
@@ -2721,44 +2754,44 @@ int disk_label(UNIT *uptr) {
         for (j = 0; j < 30; j++)
             label[j] = 0;
 
-        sec = i * SPT(type);                        /* get track address in sectors */
+        sec = i * SPT(type);                    /* get track address in sectors */
         /* convert sector number to CHS value for label */
-        CHS = disksec2star(sec, type);              /* get current CHS value */
+        CHS = disksec2star(sec, type);          /* get current CHS value */
 
         /* set buf data to current CHS values */
-        if (CHS == 0) {                             /* write last address on trk 0 */
-            cyl = CYL(type)-1;                      /* lcyl  cyl upper 8 bits */
-            trk = HDS(type)-1;                      /* ltkn  trk */
-            sec = SPT(type)-1;                      /* lid   sector ID */
+        if (CHS == 0) {                         /* write last address on trk 0 */
+            cyl = CYL(type)-1;                  /* lcyl  cyl upper 8 bits */
+            trk = HDS(type)-1;                  /* ltkn  trk */
+            sec = SPT(type)-1;                  /* lid   sector ID */
         } else {
             /* write current address on other tracks */
-            cyl = (CHS >> 16) & 0xffff;             /* get the cylinder */
-            trk = (CHS >> 8) & 0xff;                /* get the track */
-            sec = (CHS) & 0xff;                     /* get the sector */
+            cyl = (CHS >> 16) & 0xffff;         /* get the cylinder */
+            trk = (CHS >> 8) & 0xff;            /* get the track */
+            sec = (CHS) & 0xff;                 /* get the sector */
         }
 
         sim_debug(DEBUG_CMD, dptr, "disk_format WTL STAR %08x disk geom %08x\n",
             CHS, GEOM(type));
 
         /* set buf data to current STAR values */
-        label[0] = (cyl >> 8) & 0xff;               /* lcyl  cyl upper 8 bits */
-        label[1] = cyl & 0xff;                      /* lcyl  cyl lower 8 bits */
-        label[2] = trk & 0xff;                      /* ltkn  trk */
-        label[3] = sec & 0xff;                      /* lid   sector ID */
-        label[4] = 0x80;                            /* show good sector */
-        if (i == (tot_tracks-1)) {                  /* last track? */
-            label[3] = 0xff;                        /* lid   show as last track label */
-            label[4] |= 0x04;                       /* set last track flag */
+        label[0] = (cyl >> 8) & 0xff;           /* lcyl  cyl upper 8 bits */
+        label[1] = cyl & 0xff;                  /* lcyl  cyl lower 8 bits */
+        label[2] = trk & 0xff;                  /* ltkn  trk */
+        label[3] = sec & 0xff;                  /* lid   sector ID */
+        label[4] = 0x80;                        /* show good sector */
+        if (i == (tot_tracks-1)) {              /* last track? */
+            label[3] = 0xff;                    /* lid   show as last track label */
+            label[4] |= 0x04;                   /* set last track flag */
         }
 
-        sim_debug(DEBUG_DETAIL, dptr,
+        sim_debug(DEBUG_CMD, dptr,
             "disk_format WTL star %02x %02x %02x %02x\n",
             label[0], label[1], label[2], label[3]);
 
         /* daddr has dmap value for track zero label */
-        if (CHS == 0) {                             /* only write dmap address in trk 0 */
+        if (CHS == 0) {                         /* only write dmap address in trk 0 */
             /* output diag defect map address of disk */
-            label[12] = (daddr >> 24) & 0xff;       /* ldeallp DMAP pointer */
+            label[12] = (daddr >> 24) & 0xff;   /* ldeallp DMAP pointer */
             label[13] = (daddr >> 16) & 0xff;
             label[14] = (daddr >> 8) & 0xff;
             label[15] = (daddr) & 0xff;
@@ -2768,15 +2801,15 @@ int disk_label(UNIT *uptr) {
         }
 
         /* write vaddr to track label for dmap */
-        if ((i*SPT(type)) == daddr) {               /* get track address in sectors */
+        if ((i*SPT(type)) == daddr) {           /* get track address in sectors */
             /* output vendor defect map address of disk */
-            label[12] = (vaddr >> 24) & 0xff;       /* Vaddr pointer */
+            label[12] = (vaddr >> 24) & 0xff;   /* Vaddr pointer */
             label[13] = (vaddr >> 16) & 0xff;
             label[14] = (vaddr >> 8) & 0xff;
             label[15] = (vaddr) & 0xff;
-            printf("hsdp_format WTL vaddr@daddr %08x -> %08x\r\n", vaddr, daddr);
-            sim_debug(DEBUG_DETAIL, dptr,
-                "hsdp_format WTL vaddr@daddr %08x -> %08x\n", vaddr, daddr);
+            printf("disk_format WTL vaddr@daddr %08x -> %08x\r\n", vaddr, daddr);
+            sim_debug(DEBUG_CMD, dptr,
+                "disk_format WTL vaddr@daddr %08x -> %08x\n", vaddr, daddr);
         }
         /* if this is removed, utx is unable to create newfs */
         /* get preposterous size 0 error message */
@@ -2785,7 +2818,7 @@ int disk_label(UNIT *uptr) {
         /* uaddr has umap value for track zero label */
         if (CHS == 0) {                         /* only write dmap address in trk 0 */
             /* output umap address */
-            label[16] = (uaddr >> 24) & 0xff;       /* lumapp DMAP pointer */
+            label[16] = (uaddr >> 24) & 0xff;   /* lumapp DMAP pointer */
             label[17] = (uaddr >> 16) & 0xff;
             label[18] = (uaddr >> 8) & 0xff;
             label[19] = (uaddr) & 0xff;
@@ -2802,7 +2835,7 @@ int disk_label(UNIT *uptr) {
         label[28] = HDS(type) & 0xff;
 
         if ((sim_fwrite((char *)&label, sizeof(uint8), 30, uptr->fileref)) != 30) {
-            sim_debug(DEBUG_CMD, dptr,
+            sim_debug(DEBUG_EXP, dptr,
                 "Error writing track label to sect %06x offset %06x\n",
                 cap+(i*tsize), cap*ssize+(i*tsize*ssize));
             return 1;
@@ -2814,7 +2847,7 @@ int disk_label(UNIT *uptr) {
     /* plus the track label area size. Seek first sector after end */
     /* of disk track label area */
     if ((sim_fseek(uptr->fileref, CAPB(type)+TRK(type)*30, SEEK_SET)) != 0) {
-        sim_debug(DEBUG_CMD, dptr,
+        sim_debug(DEBUG_EXP, dptr,
             "Error seeking sector label area at sect %06x offset %06x\n",
             CAP(type)+TRK(type), CAPB(type)+TRK(type)*30);
         return 1;
@@ -2828,25 +2861,25 @@ int disk_label(UNIT *uptr) {
     /* write sector labels */
     for (i=0; i<(int)tot_sectors; i++) {
 
-        CHS = disksec2star(i, type);                /* get current CHS value */
+        CHS = disksec2star(i, type);            /* get current CHS value */
 
         /* set buf data to current CHS values */
         /* write current address on other tracks */
-        cyl = (CHS >> 16) & 0xffff;                 /* get the cylinder */
-        trk = (CHS >> 8) & 0xff;                    /* get the track */
-        sec = (CHS) & 0xff;                         /* get the sector */
+        cyl = (CHS >> 16) & 0xffff;             /* get the cylinder */
+        trk = (CHS >> 8) & 0xff;                /* get the track */
+        sec = (CHS) & 0xff;                     /* get the sector */
 
         sim_debug(DEBUG_CMD, dptr, "disk_format WSL STAR %08x disk geom %08x\n",
             CHS, GEOM(type));
 
         /* set buf data to current STAR values */
-        label[0] = (cyl >> 8) & 0xff;               /* lcyl  cyl upper 8 bits */
-        label[1] = cyl & 0xff;                      /* lcyl  cyl lower 8 bits */
-        label[2] = trk & 0xff;                      /* ltkn  trk */
-        label[3] = sec & 0xff;                      /* lid   sector ID */
-        label[4] = 0x80;                            /* show good sector */
+        label[0] = (cyl >> 8) & 0xff;           /* lcyl  cyl upper 8 bits */
+        label[1] = cyl & 0xff;                  /* lcyl  cyl lower 8 bits */
+        label[2] = trk & 0xff;                  /* ltkn  trk */
+        label[3] = sec & 0xff;                  /* lid   sector ID */
+        label[4] = 0x80;                        /* show good sector */
 
-        sim_debug(DEBUG_DETAIL, dptr,
+        sim_debug(DEBUG_CMD, dptr,
             "disk_format WSL star %02x %02x %02x %02x\n",
             label[0], label[1], label[2], label[3]);
 
@@ -2857,15 +2890,15 @@ int disk_label(UNIT *uptr) {
 
         /* if this is written, UTX will not be able to do a newfs */
         /* gets preposterous size 0 error */
-#ifdef TRYING_121720
+#ifdef XXXX_121720
         /* uaddr has umap value for sector one label */
-        if (CHS == 1) {                             /* only write dmap address in trk 0 */
+        if (CHS == 1) {                         /* only write dmap address in trk 0 */
             /* output last sector address of disk */
-            label[12] = (uaddr >> 24) & 0xff;       /* lumapp UMAP pointer */
+            label[12] = (uaddr >> 24) & 0xff;   /* lumapp UMAP pointer */
             label[13] = (uaddr >> 16) & 0xff;
             label[14] = (uaddr >> 8) & 0xff;
             label[15] = (uaddr) & 0xff;
-            sim_debug(DEBUG_DETAIL, dptr,
+            sim_debug(DEBUG_CMD, dptr,
                 "disk_format WSL uaddr star %02x %02x %02x %02x\n",
                 label[12], label[13], label[14], label[15]);
         } 
@@ -2896,28 +2929,29 @@ int disk_label(UNIT *uptr) {
         fprintf (stderr, "Error on seek to 0\r\n");
         return 1;
     }
-    return SCPE_OK;                                 /* good to go */
+    return SCPE_OK;                             /* good to go */
 }
 
 /* create the disk file for the specified device */
 int disk_format(UNIT *uptr) {
     int         type = GET_TYPE(uptr->flags);
     DEVICE      *dptr = get_dev(uptr);
-    uint32      ssize = SSB(type);                  /* disk sector size in bytes */
-    uint32      tsize = SPT(type);                  /* get track size in sectors */
-    uint32      csize = SPC(type);                  /* get cylinder size in sectors */
-    uint32      cyl = CYL(type);                    /* get # cylinders */
-    uint32      cap = CAP(type);                    /* disk capacity in sectors */
-    uint32      cylv = cyl;                         /* number of cylinders */
+    uint32      ssize = SSB(type);              /* disk sector size in bytes */
+    uint32      tsize = SPT(type);              /* get track size in sectors */
+    uint32      csize = SPC(type);              /* get cylinder size in sectors */
+    uint32      cyl = CYL(type);                /* get # cylinders */
+    uint32      cap = CAP(type);                /* disk capacity in sectors */
+    uint32      cylv = cyl;                     /* number of cylinders */
     uint8       *buff;
     int32       i;
+    t_stat      oldsw = sim_switches;           /* save switches */
 
                 /* last sector address of disk (cyl * hds * spt) - 1 */
-    uint32      laddr = CAP(type) - 1;              /* last sector of disk */
+    uint32      laddr = CAP(type) - 1;          /* last sector of disk */
 
 #ifndef NOT_NEEDED_0128
                 /* last track address of disk (cyl * hds * spt) - spt */
-    uint32      ltaddr = CAP(type)-SPT(type);       /* last track of disk */
+    uint32      ltaddr = CAP(type)-SPT(type);   /* last track of disk */
 #endif
 
                 /* get sector address of vendor defect table VDT */
@@ -2937,9 +2971,11 @@ int disk_format(UNIT *uptr) {
 
                 /* get sector address of utx flaw map sec 1 pointer */
                 /* use this address for sec 1 label pointer */
-//28int32       uaddr = (CYL(type)-4) * SPC(type) + (HDS(type)-3) * SPT(type);
+#ifndef NOT_NEEDED_0128
     int32       uaddr = (CYL(type)-4) * SPC(type) + (HDS(type)-4) * SPT(type);
-
+#else
+    int32       uaddr = (CYL(type)-4) * SPC(type) + (HDS(type)-3) * SPT(type);
+#endif
 
                 /* vendor flaw map in vaddr */
     uint32      vmap[2] = {0xf0000004, 0xf4000000};
@@ -2954,9 +2990,16 @@ int disk_format(UNIT *uptr) {
                     0x9a000000 | ltaddr, 0xf4000000};
 #endif
 
-    /* see if user wants to initialize the disk */
-    if (!get_yn("Initialize disk? [Y] ", TRUE)) {
-        return 1;
+    /* see if -i or -n specified on attach command */
+    if (!(sim_switches & SWMASK('N')) && !(sim_switches & SWMASK('I'))) {
+        sim_switches = 0;                       /* simh tests 'N' & 'Y' switches */
+        /* see if user wants to initialize the disk */
+        if (!get_yn("Initialize disk? [Y] ", TRUE)) {
+//          printf("disk_format init question is false\r\n");
+            sim_switches = oldsw;
+            return 1;
+        }
+        sim_switches = oldsw;                   /* restore switches */
     }
 
     /* VDT  249264 (819/18/0) 0x3cdb0 for 9346 - 823/19/16 vaddr */
@@ -2982,9 +3025,9 @@ int disk_format(UNIT *uptr) {
     /* write zeros to each track of the disk */
     for (cyl = 0; cyl < cylv; cyl++) {
         if ((sim_fwrite(buff, 1, csize*ssize, uptr->fileref)) != csize*ssize) {
-            sim_debug(DEBUG_CMD, dptr,
+            sim_debug(DEBUG_EXP, dptr,
                 "Error on write to diskfile cyl %04x\n", cyl);
-            free(buff);                             /* free cylinder buffer */
+            free(buff);                         /* free cylinder buffer */
             buff = 0;
             return 1;
         }
@@ -2993,7 +3036,7 @@ int disk_format(UNIT *uptr) {
     }
     fputc('\r', stderr);
     fputc('\n', stderr);
-    free(buff);                                     /* free cylinder buffer */
+    free(buff);                                 /* free cylinder buffer */
     buff = 0;
 
     /* byte swap the buffers for dmap and umap */
@@ -3018,13 +3061,13 @@ int disk_format(UNIT *uptr) {
 
     /* write dmap data to last sector on disk */
     if ((sim_fseek(uptr->fileref, laddr*ssize, SEEK_SET)) != 0) { /* seek last sector */
-        sim_debug(DEBUG_CMD, dptr,
+        sim_debug(DEBUG_EXP, dptr,
         "Error on last sector seek to sect %06x offset %06x\n",
         cap-1, (cap-1)*ssize);
         return 1;
     }
     if ((sim_fwrite((char *)&dmap, sizeof(uint32), 4, uptr->fileref)) != 4) {
-        sim_debug(DEBUG_CMD, dptr,
+        sim_debug(DEBUG_EXP, dptr,
         "Error writing DMAP to sect %06x offset %06x\n",
         cap-1, (cap-1)*ssize);
         return 1;
@@ -3032,7 +3075,7 @@ int disk_format(UNIT *uptr) {
 
     /* seek to vendor label area VMAP */
     if ((sim_fseek(uptr->fileref, vaddr*ssize, SEEK_SET)) != 0) { /* seek VMAP */
-        sim_debug(DEBUG_CMD, dptr,
+        sim_debug(DEBUG_EXP, dptr,
         "Error on vendor map seek to sect %06x offset %06x\n",
         vaddr, vaddr*ssize);
         return 1;
@@ -3079,25 +3122,25 @@ int disk_format(UNIT *uptr) {
         SPT(type), SPT(type));
     printf("writing to vmap sec %x (%d) bytes %x (%d)\r\n",
         vaddr, vaddr, (vaddr)*ssize, (vaddr)*ssize);
-#ifndef NOT_NEEDED_0128
-    printf("writing to flaw map sec %x (%d) bytes %x (%d)\r\n",
-        faddr, faddr, (faddr)*ssize, (faddr)*ssize);
-#endif
-    printf("writing dmap to %x %d %x %d dmap to %x %d %x %d\r\n",
+    printf("writing to dmap sec %x (%d) %x (%d) dmap to %x (%d) %x (%d)\r\n",
        cap-1, cap-1, (cap-1)*ssize, (cap-1)*ssize,
        daddr, daddr, daddr*ssize, daddr*ssize);
+#ifndef NOT_NEEDED_0128
+    printf("writing to fmap sec %x (%d) bytes %x (%d)\r\n",
+        faddr, faddr, (faddr)*ssize, (faddr)*ssize);
+#endif
     printf("writing to umap sec %x (%d) bytes %x (%d)\r\n",
         uaddr, uaddr, (uaddr)*ssize, (uaddr)*ssize);
 
     /* create labels for disk */
-    i = disk_label(uptr);                           /* label disk */
+    i = disk_label(uptr);                       /* label disk */
 
     /* seek home again */
     if ((sim_fseek(uptr->fileref, 0, SEEK_SET)) != 0) { /* seek home */
         fprintf (stderr, "Error on seek to 0\r\n");
         return 1;
     }
-    return i;                                       /* good or error */
+    return i;                                   /* good or error */
 }
 
 /* attach the selected file to the disk */
@@ -3109,13 +3152,13 @@ t_stat disk_attach(UNIT *uptr, CONST char *file)
     DEVICE          *dptr = get_dev(uptr);
     DIB             *dibp = 0;
     t_stat          r,s;
-    uint32          ssize;                          /* sector size in bytes */
+    uint32          ssize;                      /* sector size in bytes */
     uint32          info, good;
     uint8           buff[1024];
     int             i, j;
 
                     /* last sector address of disk (cyl * hds * spt) - 1 */
-    uint32          laddr = CAP(type) - 1;          /* last sector of disk */
+    uint32          laddr = CAP(type) - 1;      /* last sector of disk */
                     /* get sector address of utx diag map (DMAP) track 0 pointer */
                     /* put data = 0xf0000000 + (cyl-1), 0x8a000000 + daddr, */
                     /* 0x9a000000 + (cyl-1), 0xf4000000 */
@@ -3124,25 +3167,34 @@ t_stat disk_attach(UNIT *uptr, CONST char *file)
     uint32          dmap[4] = {0xf0000000 | (CAP(type)-1), 0x8a000000 | daddr,
                         0x9a000000 | (CAP(type)-1), 0xf4000000};
 
-    for (i=0; i<4; i++) {                           /* byte swap data for last sector */
+    for (i=0; i<4; i++) {                       /* byte swap data for last sector */
         dmap[i] = (((dmap[i] & 0xff) << 24) | ((dmap[i] & 0xff00) << 8) |
             ((dmap[i] & 0xff0000) >> 8) | ((dmap[i] >> 24) & 0xff));
     }
 
     /* see if valid disk entry */
-    if (disk_type[type].name == 0) {                /* does the assigned disk have a name */
-        detach_unit(uptr);                          /* no, reject */
-        return SCPE_FMT;                            /* error */
+    if (disk_type[type].name == 0) {            /* does the assigned disk have a name */
+        detach_unit(uptr);                      /* no, reject */
+        return SCPE_FMT;                        /* error */
+    }
+
+    if (dptr->flags & DEV_DIS) {
+        fprintf(sim_deb,
+            "ERROR===ERROR\nDisk device %s disabled on system, aborting\r\n",
+            dptr->name);
+        printf("ERROR===ERROR\nDisk device %s disabled on system, aborting\r\n",
+            dptr->name);
+        return SCPE_UDIS;                       /* device disabled */
     }
 
     /* have simulator attach the file to the unit */
     if ((r = attach_unit(uptr, file)) != SCPE_OK)
         return r;
 
-    uptr->capac = CAP(type);                        /* disk capacity in sectors */
-    ssize = SSB(type);                              /* get sector size in bytes */
+    uptr->capac = CAP(type);                    /* disk capacity in sectors */
+    ssize = SSB(type);                          /* get sector size in bytes */
     for (i=0; i<(int)ssize; i++)
-        buff[i] = 0;                                /* zero the buffer */
+        buff[i] = 0;                            /* zero the buffer */
 
     sim_debug(DEBUG_CMD, dptr,
         "Disk %s cyl %d hds %d sec %d ssiz %d capacity %d\n",
@@ -3152,24 +3204,29 @@ t_stat disk_attach(UNIT *uptr, CONST char *file)
         disk_type[type].name, disk_type[type].cyl, disk_type[type].nhds,
         disk_type[type].spt, ssize, uptr->capac);   /* disk capacity */
 
+    /* see if -i or -n specified on attach command */
+    if ((sim_switches & SWMASK('N')) || (sim_switches & SWMASK('I'))) {
+        goto fmt;                               /* user wants new disk */
+    }
+
     /* seek to end of disk */
     if ((sim_fseek(uptr->fileref, 0, SEEK_END)) != 0) {
         sim_debug(DEBUG_CMD, dptr, "UDP Disk attach SEEK end failed\n");
         printf("Disk attach SEEK end failed\r\n");
-        goto fmt;                                   /* not setup, go format */
+        goto fmt;                               /* not setup, go format */
     }
 
-    s = ftell(uptr->fileref);                       /* get current file position */
+    s = ftell(uptr->fileref);                   /* get current file position */
     if (s == 0) {
         sim_debug(DEBUG_CMD, dptr, "UDP Disk attach ftell failed s=%06d\n", s);
         printf("Disk attach ftell failed s=%06d\r\n", s);
-        goto fmt;                                   /* not setup, go format */
+        goto fmt;                               /* not setup, go format */
     }
-//  sim_debug(DEBUG_CMD, dptr, "UDP Disk attach ftell value s=%06d b=%06d CAP %06d\n", s/ssize, s, CAP(type));
-//  printf("Disk attach ftell value s=%06d b=%06d CAP %06d\r\n", s/ssize, s, CAP(type));
+    sim_debug(DEBUG_CMD, dptr, "UDP Disk attach ftell value s=%06d b=%06d CAP %06d\n", s/ssize, s, CAP(type));
+    printf("Disk attach ftell value s=%06d b=%06d CAP %06d\r\n", s/ssize, s, CAP(type));
 
     if (((int)s/(int)ssize) < ((int)CAP(type))) {   /* full sized disk? */
-        j = (CAP(type) - (s/ssize));                /* get # sectors to write */
+        j = (CAP(type) - (s/ssize));            /* get # sectors to write */
         sim_debug(DEBUG_CMD, dptr,
             "Disk attach for MPX 1.X needs %04d more sectors added to disk\n", j);
         printf("Disk attach for MPX 1.X needs %04d more sectors added to disk\r\n", j);
@@ -3179,10 +3236,10 @@ t_stat disk_attach(UNIT *uptr, CONST char *file)
             if ((r = sim_fwrite(buff, sizeof(uint8), ssize, uptr->fileref) != ssize)) {
                 sim_debug(DEBUG_CMD, dptr, "Disk attach fread ret = %04d\n", r);
                 printf("Disk attach fread ret = %04d\r\n", r);
-                goto fmt;                           /* not setup, go format */
+                goto fmt;                       /* not setup, go format */
             }
         }
-        s = ftell(uptr->fileref);                   /* get current file position */
+        s = ftell(uptr->fileref);               /* get current file position */
         sim_debug(DEBUG_CMD, dptr,
             "Disk attach MPX 1.X file extended & sized secs %06d bytes %06d\n", s/ssize, s);
         printf("Disk attach MPX 1.X  file extended & sized secs %06d bytes %06d\r\n", s/ssize, s);
@@ -3243,7 +3300,7 @@ add_size:
     good = 0xf0000000 | (CAP(type)-1);
     /* check for 0xf0ssssss where ssssss is disk size-1 in sectors */
     if (info != good) {
-        sim_debug(DEBUG_CMD, dptr,
+        sim_debug(DEBUG_EXP, dptr,
             "Disk format error buf0 %02x buf1 %02x buf2 %02x buf3 %02x\n",
             buff[0], buff[1], buff[2], buff[3]);
         printf("Disk format error buf0 %02x buf1 %02x buf2 %02x buf3 %02x\r\n",
@@ -3251,16 +3308,18 @@ add_size:
 fmt:
         /* format the drive */
         if (disk_format(uptr)) {
-            detach_unit(uptr);                      /* if no space, error */
-            return SCPE_FMT;                        /* error */
+            detach_unit(uptr);                  /* if no space, error */
+            return SCPE_FMT;                    /* error */
         }
     }
 
 ldone:
     /* see if disk has labels already, seek to sector past end of disk  */
     if ((sim_fseek(uptr->fileref, CAP(type)*ssize, SEEK_SET)) != 0) { /* seek end */
-        detach_unit(uptr);                          /* detach if error */
-        return SCPE_FMT;                            /* error */
+        sim_debug(DEBUG_CMD, dptr, "UDP Disk attach SEEK last sector @ldone failed\n");
+        printf("UDP Disk attach SEEK last sector @ldone failed\r\n");
+        detach_unit(uptr);                      /* detach if error */
+        return SCPE_FMT;                        /* error */
     }
 
     i = SCPE_OK;
@@ -3273,39 +3332,44 @@ ldone:
             file, disk_type[type].name);
         printf("File %s attached to %s creating labels\r\n",
             file, disk_type[type].name);
-        i = disk_label(uptr);                       /* label disk */
+        i = disk_label(uptr);                   /* label disk */
         if (i != 0) {
-            detach_unit(uptr);                      /* detach if error */
-            return SCPE_FMT;                        /* error */
+            detach_unit(uptr);                  /* detach if error */
+            return SCPE_FMT;                    /* error */
         }
     } else {
         int32   uaddr = (CYL(type)-4) * SPC(type) + (HDS(type)-4) * SPT(type);
         /* uaddr has umap value for track zero label */
         /* output umap address */
-        buff[16] = (uaddr >> 24) & 0xff;            /* lumapp DMAP pointer */
+        buff[16] = (uaddr >> 24) & 0xff;        /* lumapp DMAP pointer */
         buff[17] = (uaddr >> 16) & 0xff;
         buff[18] = (uaddr >> 8) & 0xff;
         buff[19] = (uaddr) & 0xff;
         if ((sim_fseek(uptr->fileref, CAP(type)*ssize, SEEK_SET)) != 0) { /* seek end */
-            detach_unit(uptr);                      /* detach if error */
-            return SCPE_FMT;                        /* error */
+            detach_unit(uptr);                  /* detach if error */
+            return SCPE_FMT;                    /* error */
         }
         /* output updated umap address to track 0 for UTX21a */
         if ((sim_fwrite(buff, sizeof(uint8), 30, uptr->fileref)) != 30) {
-            sim_debug(DEBUG_CMD, dptr,
+            sim_debug(DEBUG_EXP, dptr,
                 "Error writing back track 0 label to sect %06x offset %06x\n",
                 CAP(type), CAP(type)*ssize);
-            return SCPE_FMT;                        /* error */
+            return SCPE_FMT;                    /* error */
         }
     }
 
+    /* UTX map (NUMP) does not insert an F4 after the replacement tracks */
+    /* so do it after the tracks are defined to stop halt on bootup */
+    /* utxmap + 32 + 88 + (3*spare) + 1 */
+    /* spare count is at utxmap + 8w (32) */
+
     if ((sim_fseek(uptr->fileref, 0, SEEK_SET)) != 0) { /* seek home */
-        detach_unit(uptr);                          /* detach if error */
-        return SCPE_FMT;                            /* error */
+        detach_unit(uptr);                      /* detach if error */
+        return SCPE_FMT;                        /* error */
     }
 
     /* start out at sector 0 */
-    uptr->CHS = 0;                                  /* set CHS to cyl/hd/sec = 0 */
+    uptr->CHS = 0;                              /* set CHS to cyl/hd/sec = 0 */
 
     sim_debug(DEBUG_CMD, dptr,
         "UDP %s cyl %d hds %d spt %d spc %d cap sec %d cap bytes %d\n",
@@ -3323,15 +3387,15 @@ ldone:
 
     /* check for valid configured disk */
     /* must have valid DIB and Channel Program pointer */
-    dibp = (DIB *)dptr->ctxt;                       /* get the DIB pointer */
+    dibp = (DIB *)dptr->ctxt;                   /* get the DIB pointer */
     if ((dib_unit[chsa] == NULL) || (dibp == NULL) || (chp == NULL)) {
-        sim_debug(DEBUG_CMD, dptr,
+        sim_debug(DEBUG_EXP, dptr,
             "ERROR===ERROR\nUDP device %s not configured on system, aborting\n",
             dptr->name);
         printf("ERROR===ERROR\nUDP device %s not configured on system, aborting\r\n",
             dptr->name);
-        detach_unit(uptr);                          /* detach if error */
-        return SCPE_UNATT;                          /* error */
+        detach_unit(uptr);                      /* detach if error */
+        return SCPE_UNATT;                      /* error */
     }
     set_devattn(chsa, SNS_DEVEND);
     return SCPE_OK;
@@ -3339,27 +3403,37 @@ ldone:
 
 /* detach a disk device */
 t_stat disk_detach(UNIT *uptr) {
-    uptr->SNS = 0;                                  /* clear sense data */
-    uptr->CMD &= LMASK;                             /* remove old status bits & cmd */
-    return detach_unit(uptr);                       /* tell simh we are done with disk */
+    uptr->SNS = 0;                              /* clear sense data */
+    uptr->CMD &= LMASK;                         /* remove old status bits & cmd */
+    return detach_unit(uptr);                   /* tell simh we are done with disk */
 }
 
 /* boot from the specified disk unit */
 t_stat disk_boot(int32 unit_num, DEVICE *dptr) {
-    UNIT    *uptr = &dptr->units[unit_num];         /* find disk unit number */
+    UNIT    *uptr = &dptr->units[unit_num];     /* find disk unit number */
 
-    sim_debug(DEBUG_CMD, dptr, "Disk Boot dev/unit %x\n", GET_UADDR(uptr->CMD));
+    sim_debug(DEBUG_CMD, dptr,
+       "Disk Boot dev/unit %x\n", GET_UADDR(uptr->CMD));
+
+    /* see if device disabled */
+    if (dptr->flags & DEV_DIS) {
+        printf("ERROR===ERROR\r\nDisk device %s disabled on system, aborting\r\n",
+            dptr->name);
+        return SCPE_UDIS;                       /* device disabled */
+    }
 
     if ((uptr->flags & UNIT_ATT) == 0) {
-        sim_debug(DEBUG_EXP, dptr, "Disk Boot attach error dev/unit %04x\n",
+        sim_debug(DEBUG_EXP, dptr,
+            "Disk Boot attach error dev/unit %04x\n",
             GET_UADDR(uptr->CMD));
-        return SCPE_UNATT;                          /* attached? */
+        return SCPE_UNATT;                      /* attached? */
     }
-    SPAD[0xf4] = GET_UADDR(uptr->CMD);              /* put boot device chan/sa into spad */
-    SPAD[0xf8] = 0xF000;                            /* show as F class device */
+
+    SPAD[0xf4] = GET_UADDR(uptr->CMD);          /* put boot device chan/sa into spad */
+    SPAD[0xf8] = 0xF000;                        /* show as F class device */
 
     /* now boot the disk */
-    uptr->CMD &= LMASK;                             /* remove old status bits & cmd */
+    uptr->CMD &= LMASK;                         /* remove old status bits & cmd */
     return chan_boot(GET_UADDR(uptr->CMD), dptr);   /* boot the ch/sa */
 }
 
@@ -3369,18 +3443,18 @@ t_stat disk_set_type(UNIT *uptr, int32 val, CONST char *cptr, void *desc)
 {
     int     i;
 
-    if (cptr == NULL)                               /* any disk name input? */
-        return SCPE_ARG;                            /* arg error */
-    if (uptr == NULL)                               /* valid unit? */
-        return SCPE_IERR;                           /* no, error */
-    if (uptr->flags & UNIT_ATT)                     /* is unit attached? */
-        return SCPE_ALATT;                          /* no, error */
+    if (cptr == NULL)                           /* any disk name input? */
+        return SCPE_ARG;                        /* arg error */
+    if (uptr == NULL)                           /* valid unit? */
+        return SCPE_IERR;                       /* no, error */
+    if (uptr->flags & UNIT_ATT)                 /* is unit attached? */
+        return SCPE_ALATT;                      /* no, error */
 
     /* now loop through the units and find named disk */
     for (i = 0; disk_type[i].name != 0; i++) {
         if (strcmp(disk_type[i].name, cptr) == 0) {
-            uptr->flags &= ~UNIT_TYPE;              /* clear the old UNIT type */
-            uptr->flags |= SET_TYPE(i);             /* set the new type */
+            uptr->flags &= ~UNIT_TYPE;          /* clear the old UNIT type */
+            uptr->flags |= SET_TYPE(i);         /* set the new type */
             /* set capacity of disk in sectors */
             uptr->capac = CAP(i);
             return SCPE_OK;
@@ -3413,9 +3487,9 @@ t_stat disk_help (FILE *st, DEVICE *dptr, UNIT *uptr, int32 flag, const char *cp
     }
     fprintf (st, ".\nEach drive has the following storage capacity:\r\n");
     for (i = 0; disk_type[i].name != 0; i++) {
-        int32   size = CAPB(i);                     /* disk capacity in bytes */
-        size /= 1024;                               /* make KB */
-        size = (10 * size) / 1024;                  /* size in MB * 10 */
+        int32   size = CAPB(i);                 /* disk capacity in bytes */
+        size /= 1024;                           /* make KB */
+        size = (10 * size) / 1024;              /* size in MB * 10 */
         fprintf(st, "      %-8s %4d.%1d MB cyl %3d hds %3d sec %3d blk %3d\r\n",
             disk_type[i].name, size/10, size%10, CYL(i), HDS(i), SPT(i), SSB(i));
     }

@@ -136,7 +136,7 @@
 #define NUM_DEVS_LPR    1       /* 1 IOP Line printer */
 #define NUM_UNITS_LPR   1       /* 1 IOP Line printer device */
 #define NUM_DEVS_ETHER  1       /* 1 Ethernet controller */
-#define NUM_UNITS_ETHER 10      /* 10 Ethernet devices */
+#define NUM_UNITS_ETHER 16      /* 16 Ethernet devices */
 
 extern DEVICE cpu_dev;      /* cpu device */
 extern UNIT cpu_unit;       /* the cpu unit */
@@ -212,11 +212,25 @@ typedef struct chp {
     uint16      ccw_flags;              /* Channel flags */
     uint16      chan_status;            /* Channel status */
     uint16      chan_dev;               /* Device on channel */
+#ifndef CHANGE_03072021
+    uint16      chan_qwait;             /* Instr to xeq before iocl proccessing */
+#endif
     uint8       ccw_cmd;                /* Channel command and flags */
     uint8       chan_byte;              /* Current byte, empty/full */
     uint8       chan_int;               /* channel interrupt level */
     uint8       chan_info;              /* misc flags for channel */
 } CHANP;
+
+#define QWAIT0  0
+#define QWAIT5  5
+#define QWAIT10 10
+#define QWAIT15 15
+#define QWAIT20 20
+#define QWAIT25 25
+#define QWAIT30 30
+#define QWAIT35 35
+#define QWAIT40 40
+#define QWAIT   QWAIT0
 
 /* Device information block */
 #define FIFO_SIZE 256                   /* fifo to hold 128 double words of status */
@@ -238,21 +252,21 @@ extern  int32   IOCLQ_Num(IOCLQ *qptr);
 
 typedef struct dib {
         /* Pre start I/O operation */
-        uint16      (*pre_io)(UNIT *uptr, uint16 chan);
+        t_stat      (*pre_io)(UNIT *uptr, uint16 chan);
         /* Start a channel command SIO */
-        uint16      (*start_cmd)(UNIT *uptr, uint16 chan, uint8 cmd);
+        t_stat      (*start_cmd)(UNIT *uptr, uint16 chan, uint8 cmd);
         /* Halt I/O HIO */
-        uint16      (*halt_io)(UNIT *uptr); /* Halt I/O */
+        t_stat      (*halt_io)(UNIT *uptr); /* Halt I/O */
         /* Test I/O STOPIO */
-        uint16      (*stop_io)(UNIT *uptr); /* Stop I/O */
+        t_stat      (*stop_io)(UNIT *uptr); /* Stop I/O */
         /* Test I/O TESTIO */
-        uint16      (*test_io)(UNIT *uptr); /* Test I/O */
+        t_stat      (*test_io)(UNIT *uptr); /* Test I/O */
         /* Reset Controller RSCTL */
-        uint16      (*rsctl_io)(UNIT *uptr);    /* Reset Controller */
+        t_stat      (*rsctl_io)(UNIT *uptr);    /* Reset Controller */
         /* Reset Controller RSCHNL */
-        uint16      (*rschnl_io)(UNIT *uptr);   /* Reset Channel */
+        t_stat      (*rschnl_io)(UNIT *uptr);   /* Reset Channel */
         /* Post I/O processing  */
-        uint16      (*iocl_io)(CHANP *chp, int32 tic_ok);   /* IOCL processing */
+        t_stat      (*iocl_io)(CHANP *chp, int32 tic_ok);   /* IOCL processing */
         /* Controller init */
         void        (*dev_ini)(UNIT *, t_bool); /* init function */
         UNIT        *units;             /* Pointer to units structure */
@@ -479,7 +493,6 @@ extern DEBTAB dev_debug[];
 /* write halfword to memory address */
 #define WMH(a,d) ((a)&2?(M[(a)>>2]=(M[(a)>>2]&LMASK)|((d)&RMASK)):(M[(a)>>2]=(M[(a)>>2]&RMASK)|((d)<<16)))
 /* write byte to memory */
-//#define WMB(a,d) (M[(a)>>2]=(((M[(a)>>2])&(~(0xff<<(8*(7-(a&3))))))|((d&0xff)<<(8*(7-(a&3))))))
 #define WMB(a,d) (M[(a)>>2]=(((M[(a)>>2])&(~(0xff<<(8*(3-(a&3))))))|((d&0xff)<<(8*(3-(a&3))))))
 
 /* map register access macros */

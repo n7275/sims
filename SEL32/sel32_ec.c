@@ -1,6 +1,7 @@
 /* sel32_ec.c: SEL-32 8516 Ethernet controller.
 
-   Copyright (c) 2020, Richard Cornwell
+   Copyright (c) 2020-2021, Richard Cornwell
+   Portions provided by James C. Bevier and other SIMH contributers
 
    Permission is hereby granted, free of charge, to any person obtaining a
    copy of this software and associated documentation files (the "Software"),
@@ -196,14 +197,14 @@ struct ec_device {
     ETH_MAC           mac;                     /* Hardware MAC addresses */
     ETH_DEV           etherface;
     ETH_QUE           ReadQ;
-    ETH_PACK          rec_buff[64];            /* Buffer for recieved packet */
+    ETH_PACK          rec_buff[1024];          /* Buffer for received packet */
     ETH_PACK          snd_buff;                /* Buffer for sending packet */
     int               macs_n;                  /* Number of multi-cast addresses */
     ETH_MAC           macs[67];                /* Watched Multi-cast addresses */
     int               amc;                     /* Recieve all multicast packets */
     uint32            rx_count;                /* Packets received */
     uint32            tx_count;                /* Packets sent */
-    uint16            drop_cnt;                /* Packets dropped */
+    t_stat            drop_cnt;                /* Packets dropped */
     int               r_pkt;                   /* Packet pending */
     int               poll;                    /* Need to poll receiver */
     int               lp_rdy;                  /* Loop back packet ready */
@@ -212,31 +213,36 @@ struct ec_device {
     uint8             conf[12];                /* user specified configuration */
 } ec_data;
 
+#define LOOP_MSK 0x3ff
+
 extern  int32 tmxr_poll;
 extern  uint32  readfull(CHANP *chp, uint32 maddr, uint32 *word);
 
 static CONST ETH_MAC broadcast_ethaddr = {0xff,0xff,0xff,0xff,0xff,0xff};
 
 /* channel program information */
-//CHANP           ec_chp[8] = {0};
-CHANP           ec_chp[NUM_UNITS_ETHER] = {0};
+CHANP       ec_chp[NUM_UNITS_ETHER] = {0};
 
-uint16         ec_startcmd(UNIT *uptr, uint16 chan, uint8 cmd);
-t_stat         ec_rec_srv(UNIT *uptr);
-t_stat         ec_srv(UNIT *uptr);
-uint16         ec_haltio(UNIT *uptr);
-uint16         ec_iocl(CHANP *chp, int32 tic_ok);
-void           ec_packet_debug(struct ec_device *ec, const char *action, ETH_PACK *packet);
-t_stat         ec_reset (DEVICE *dptr);
-void           ec_ini(UNIT *, t_bool);
-t_stat         ec_show_mac (FILE* st, UNIT* uptr, int32 val, CONST void* desc);
-t_stat         ec_set_mac (UNIT* uptr, int32 val, CONST char* cptr, void* desc);
-t_stat         ec_show_mode (FILE* st, UNIT* uptr, int32 val, CONST void* desc);
-t_stat         ec_set_mode (UNIT* uptr, int32 val, CONST char* cptr, void* desc);
-t_stat         ec_attach (UNIT * uptr, CONST char * cptr);
-t_stat         ec_detach (UNIT * uptr);
-t_stat         ec_help (FILE *st, DEVICE *dptr, UNIT *uptr, int32 flag, CONST char *cptr);
-const char     *ec_description (DEVICE *dptr);
+/* forward definitions */
+t_stat      ec_preio(UNIT *uptr, uint16 chan);
+t_stat      ec_startcmd(UNIT *uptr, uint16 chan, uint8 cmd);
+t_stat      ec_rec_srv(UNIT *uptr);
+t_stat      ec_srv(UNIT *uptr);
+t_stat      ec_haltio(UNIT *uptr);
+t_stat      ec_iocl(CHANP *chp, int32 tic_ok);
+void        ec_packet_debug(struct ec_device *ec, const char *action, ETH_PACK *packet);
+t_stat      ec_reset (DEVICE *dptr);
+void        ec_ini(UNIT *, t_bool);
+t_stat      ec_rsctrl(UNIT *uptr);
+t_stat      ec_rschnlio(UNIT *uptr);
+t_stat      ec_show_mac (FILE* st, UNIT* uptr, int32 val, CONST void* desc);
+t_stat      ec_set_mac (UNIT* uptr, int32 val, CONST char* cptr, void* desc);
+t_stat      ec_show_mode (FILE* st, UNIT* uptr, int32 val, CONST void* desc);
+t_stat      ec_set_mode (UNIT* uptr, int32 val, CONST char* cptr, void* desc);
+t_stat      ec_attach (UNIT * uptr, CONST char * cptr);
+t_stat      ec_detach (UNIT * uptr);
+t_stat      ec_help (FILE *st, DEVICE *dptr, UNIT *uptr, int32 flag, CONST char *cptr);
+const char  *ec_description (DEVICE *dptr);
 
 #define ec_master_uptr (&ec_unit[0])  /* Unit doing receive digestion */
 
@@ -250,6 +256,8 @@ UNIT ec_unit[] = {
     {UDATA(ec_srv, UNIT_IDLE|UNIT_DIS|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE05)},  /* 5 */
     {UDATA(ec_srv, UNIT_IDLE|UNIT_DIS|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE06)},  /* 6 */
     {UDATA(ec_srv, UNIT_IDLE|UNIT_DIS|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE07)},  /* 7 */
+    {UDATA(ec_srv, UNIT_IDLE|UNIT_DIS|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE08)},  /* 8 */
+    {UDATA(ec_srv, UNIT_IDLE|UNIT_DIS|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE09)},  /* 9 */
 #else
     {UDATA(ec_srv, UNIT_IDLE|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE01)},  /* 1 */
     {UDATA(ec_srv, UNIT_IDLE|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE02)},  /* 2 */
@@ -260,24 +268,28 @@ UNIT ec_unit[] = {
     {UDATA(ec_srv, UNIT_IDLE|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE07)},  /* 7 */
     {UDATA(ec_srv, UNIT_IDLE|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE08)},  /* 8 */
     {UDATA(ec_srv, UNIT_IDLE|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE09)},  /* 9 */
-//  {UDATA(ec_srv, UNIT_IDLE|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE0A)},  /* A */
+    {UDATA(ec_srv, UNIT_IDLE|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE0A)},  /* A */
+    {UDATA(ec_srv, UNIT_IDLE|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE0B)},  /* B */
+    {UDATA(ec_srv, UNIT_IDLE|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE0C)},  /* C */
+    {UDATA(ec_srv, UNIT_IDLE|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE0D)},  /* D */
+    {UDATA(ec_srv, UNIT_IDLE|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE0E)},  /* E */
+    {UDATA(ec_srv, UNIT_IDLE|UNIT_SUBCHAN, 0), 0, UNIT_ADDR(0xE0F)},  /* F */
 #endif
 };
 
 DIB             ec_dib = {
-    NULL,                                       /* Pre start I/O */
-    ec_startcmd,                                /* Start a command */
-    ec_haltio,      /* uint16 (*halt_io)(UNIT *uptr) */ /* Halt I/O */
-    NULL,           /* uint16 (*stop_io)(UNIT *uptr) */ /* Stop I/O */
-    NULL,           /* uint16 (*test_io)(UNIT *uptr) */ /* Test I/O */
-    NULL,           /* uint16 (*rsctl_io)(UNIT *uptr) */    /* Reset Controller */
-    NULL,           /* uint16 (*rschnl_io)(UNIT *uptr) */   /* Reset Channel */
-    ec_iocl,        /* uint16 (*iocl_io)(CHANP *chp, int32 tic_ok)) */  /* Process IOCL */
-    ec_ini,         /* void (*dev_ini)(UNIT *uptr) */   /* init function */
+    ec_preio,       /* t_stat (*pre_io)(UNIT *uptr, uint16 chan)*/  /* Pre Start I/O */
+    ec_startcmd,    /* t_stat (*start_cmd)(UNIT *uptr, uint16 chan, uint8 cmd)*/ /* Start command */
+    ec_haltio,      /* t_stat (*halt_io)(UNIT *uptr) */     /* Halt I/O */
+    NULL,           /* t_stat (*stop_io)(UNIT *uptr) */     /* Stop I/O */
+    NULL,           /* t_stat (*test_io)(UNIT *uptr) */     /* Test I/O */
+    ec_rsctrl,      /* t_stat (*rsctl_io)(UNIT *uptr) */    /* Reset Controller */
+    ec_rschnlio,    /* t_stat (*rschnl_io)(UNIT *uptr) */   /* Reset Channel */
+    ec_iocl,        /* t_stat (*iocl_io)(CHANP *chp, int32 tic_ok)) */  /* Process IOCL */
+    ec_ini,         /* void (*dev_ini)(UNIT *uptr) */       /* init function */
     ec_unit,        /* UNIT *units */           /* Pointer to units structure */
     ec_chp,         /* CHANP *chan_prg */       /* Pointer to chan_prg structure */
     NULL,           /* IOCLQ *ioclq_ptr */      /* IOCL entries, 1 per UNIT */
-//  8,                                          /* number of units defined */
     NUM_UNITS_ETHER,                            /* number of units defined */
     0x0F,                                       /* device mask */
     0x0E00,                                     /* parent channel address */
@@ -285,7 +297,6 @@ DIB             ec_dib = {
     0,                                          /* fifo output index */
     {0},                                        /* interrupt status fifo for channel */
 };
-
 
 MTAB ec_mod[] = {
     { MTAB_XTD|MTAB_VDV|MTAB_VALR|MTAB_NC, 0, "MODE", "MODE=#",
@@ -322,7 +333,6 @@ DEBTAB              ec_debug[] = {
 
 DEVICE ec_dev = {
     "EC", ec_unit, NULL, ec_mod,
-//  8, 16, 24, 4, 16, 32,
     NUM_UNITS_ETHER, 16, 24, 4, 16, 32,
     NULL, NULL, &ec_reset, NULL, &ec_attach, &ec_detach,
     &ec_dib, DEV_DISABLE | DEV_DEBUG | DEV_ETHER, 0, ec_debug,
@@ -332,14 +342,14 @@ DEVICE ec_dev = {
 /* load in the IOCD and process the commands */
 /* return = 0 OK */
 /* return = 1 error, chan_status will have reason */
-uint16  ec_iocl(CHANP *chp, int32 tic_ok)
+t_stat  ec_iocl(CHANP *chp, int32 tic_ok)
 {
     uint32      word1 = 0;
     uint32      word2 = 0;
     int32       docmd = 0;
-//  DIB         *dibp = dib_unit[chp->chan_dev];/* get the DIB pointer */
     UNIT        *uptr = chp->unitptr;           /* get the unit ptr */
     uint16      chan = get_chan(chp->chan_dev); /* our channel */
+    uint16      chsa = chp->chan_dev;
     uint16      devstat = 0;
     DEVICE      *dptr = get_dev(uptr);
 
@@ -347,8 +357,8 @@ uint16  ec_iocl(CHANP *chp, int32 tic_ok)
     if (chp->chan_info & INFO_SIOCD) {          /* see if 1st IOCD in channel prog */
         if (chp->chan_caw & 0x3) {              /* must be word bounded */
             sim_debug(DEBUG_EXP, dptr,
-                "ec_iocl iocd bad address chan %02x caw %06x\n",
-                chan, chp->chan_caw);
+                "ec_iocl iocd bad address chsa %02x caw %06x\n",
+                chsa, chp->chan_caw);
             chp->ccw_addr = chp->chan_caw;      /* set the bad iocl address */
             chp->chan_status |= STATUS_PCHK;    /* program check for invalid iocd addr */
             return 1;                           /* error return */
@@ -356,7 +366,7 @@ uint16  ec_iocl(CHANP *chp, int32 tic_ok)
     }
 loop:
     sim_debug(DEBUG_EXP, dptr,
-        "ec_iocl @%06x entry chan_status[%04x] %04x SNS %08x\n",
+        "ec_iocl @%06x @loop chan_status[%04x] %04x SNS %08x\n",
         chp->chan_caw, chan, chp->chan_status, uptr->SNS);
 
     /* Abort if we have any errors */
@@ -383,8 +393,8 @@ loop:
     }
 
     sim_debug(DEBUG_CMD, dptr,
-        "ec_iocl @%06x read ccw chan %02x IOCD wd 1 %08x wd 2 %08x SNS %08x\n",
-        chp->chan_caw, chan, word1, word2, uptr->SNS);
+        "ec_iocl @%06x read ccw chsa %04x IOCD wd 1 %08x wd 2 %08x SNS %08x\n",
+        chp->chan_caw, chp->chan_dev, word1, word2, uptr->SNS);
 
     chp->chan_caw = (chp->chan_caw & 0xfffffc) + 8; /* point to next IOCD */
 
@@ -397,13 +407,14 @@ loop:
             chp->chan_caw, chp->ccw_flags, chp->ccw_cmd);
     } else
         chp->ccw_cmd = (word1 >> 24) & 0xff;    /* set new command from IOCD wd 1 */
+
     chp->ccw_count = 0;
 
     if (!MEM_ADDR_OK(word1 & MASK24)) {         /* see if memory address invalid */
         chp->chan_status |= STATUS_PCHK;        /* bad, program check */
-//      uptr->SNS |= SNS_INAD;                  /* invalid address status */
         sim_debug(DEBUG_EXP, dptr,
-            "ec_iocl bad IOCD1 chan_status[%04x] %04x\n", chan, chp->chan_status);
+            "ec_iocl mem error PCHK chan_status[%04x] %04x addr %08x\n",
+            chan, chp->chan_status, word1 & MASK24);
         return 1;                               /* error return */
     }
 
@@ -416,20 +427,74 @@ loop:
     case 0x88: case 0x90: case 0x98: case 0xa0: case 0xa8: case 0xb0: case 0xb8:
     case 0xc0: case 0xc8: case 0xd0: case 0xd8: case 0xe0: case 0xe8: case 0xf0:
     case 0xf8:
-//      uptr->SNS |= SNS_CMDREJ;
         uptr->SNS &= ~SNS_CMDREJ;               /* remove CMD reject status */
         sim_debug(DEBUG_CMD, dptr,
-            "ec_startcmd illegal at ec_startcmd %02x SNS %08x\n",
+            "ec_iocl illegal at ec_startcmd %02x SNS %08x\n",
             chp->ccw_cmd, uptr->SNS);
         chp->ccw_count = 0;                     /* diags want zero count */
         chp->chan_status |= STATUS_PCHK;        /* program check for invalid cmd */
         return 1;                               /* error return */
 
-    case EC_INCH: case EC_WRITE: case EC_READ: case EC_LIA:
-    case EC_TIC: case EC_CGA: case EC_LGA: case EC_LCC:
-    case EC_STATS: case EC_CSTATS:
+    case EC_READ:
+        /* read count must be multiple of 4 */
+        if ((word2 & 0xffff) & 3) {
+            sim_debug(DEBUG_DETAIL, &ec_dev,
+                "ec_iocl READ cnt not multiple of 4 %d\n", word2 & 0xffff);
+            /* diags wants prog check instead of unit check */
+            chp->chan_status |= STATUS_PCHK;    /* program check for invalid cmd */
+            return 1;                           /* error return */
+        }
+        /* see if too few bytes */
+//T20   if (((word2 & 0xffff) < ETH_MIN_PACKET) &&  /* not at least 60 bytes */
+//UTX   if (((word2 & 0xffff) < 20) &&          /* not at least 20 bytes */
+        if (((chp->chan_info & INFO_SIOCD) == 1) && /* see if 1st IOCD in channel prog */
+            ((word2 & 0xffff) < 20) &&          /* not at least 20 bytes */
+            ((word2 & BIT0) == 0)) {            /* and not data chained */
+            sim_debug(DEBUG_DETAIL, &ec_dev,
+                "ec_iocl READ error small packet 0x%04x\n", word2 & 0xffff);
+            /* diags wants incorrect length instead of program check */
+            chp->chan_status |= STATUS_LENGTH;  /* incorrect length error */
+            return 1;                           /* error return */
+        }
+        /* see if too many bytes */
+        if ((word2 & 0xffff) > (ETH_MAX_PACKET+2)) {
+            sim_debug(DEBUG_DETAIL, &ec_dev,
+                "ec_iocl READ error large packet 0x%04x\n", word2 & 0xffff);
+            /* diags wants prog check instead of length check for test 4E */
+            chp->chan_status |= STATUS_PCHK;    /* program check for invalid cmd */
+            return 1;                           /* error return */
+        }
         uptr->SNS = 0;
         break;
+    case EC_WRITE:
+        /* see if too few bytes */
+//T20   if (((word2 & 0xffff) < ETH_MIN_PACKET) &&  /* not at least 60 bytes */
+//T20   if (((word2 & 0xffff) < 10) &&          /* not at least 10 bytes */
+//UTX   if (((word2 & 0xffff) < 8) &&           /* not at least 8 bytes */
+        if (((chp->chan_info & INFO_SIOCD) == 1) && /* see if 1st IOCD in channel prog */
+            ((word2 & 0xffff) < 8) &&           /* not at least 8 bytes */
+            ((word2 & BIT0) == 0)) {            /* and not data chained */
+            sim_debug(DEBUG_DETAIL, &ec_dev,
+                "ec_iocl WRITE error small packet 0x%04x\n", word2 & 0xffff);
+            /* diags wants prog check instead of unit check */
+            chp->chan_status |= STATUS_PCHK;    /* program check for invalid cmd */
+            return 1;                           /* error return */
+        }
+        /* see if too many bytes */
+        if ((word2 & 0xffff) > ETH_MAX_PACKET) {
+            sim_debug(DEBUG_DETAIL, &ec_dev,
+                "ec_iocl WRITE error large packet 0x%04x\n", word2 & 0xffff);
+            /* diags wants prog check instead of length check for test 4E */
+            chp->chan_status |= STATUS_PCHK;    /* program check for invalid cmd */
+            return 1;                           /* error return */
+        }
+        uptr->SNS = 0;
+        break;
+    case EC_INCH: case EC_LIA:
+    case EC_TIC: case EC_CGA: case EC_LGA: case EC_LCC:
+        uptr->SNS = 0;
+        break;
+    case EC_STATS: case EC_CSTATS:
     case EC_SNS:
         break;
     case EC_NOP:
@@ -444,7 +509,7 @@ loop:
         uptr->SNS |= SNS_CMDREJ;
         chp->chan_status |= STATUS_CHECK;       /* diags want unit check */
         sim_debug(DEBUG_CMD, dptr,
-            "ec_startcmd illegal cmd %02x SNS %08x\n",
+            "ec_startcmd illegal2 cmd %02x SNS %08x\n",
             chp->ccw_cmd, uptr->SNS);
         return 1;                               /* error return */
         break;
@@ -475,7 +540,6 @@ loop:
                 chp->chan_status |= STATUS_PCHK; /* program check for invalid tic */
                 chp->chan_caw = word1 & MASK24; /* get new IOCD address */
                 uptr->SNS |= SNS_CMDREJ;        /* cmd rejected status */
-//              uptr->SNS |= SNS_INAD;          /* invalid address status */
                 return 1;                       /* error return */
             }
             tic_ok = 0;                         /* another tic not allowed */
@@ -521,15 +585,11 @@ loop:
         if ((chp->ccw_cmd == EC_INCH) || (chp->ccw_cmd == EC_NOP) ||
             (chp->ccw_cmd == EC_CGA) || (chp->ccw_cmd == EC_CSTATS)) {
             chp->chan_status |= STATUS_PCHK;    /* program check for invalid DC */
-//          uptr->SNS |= SNS_CHER;              /* chaining error */
             sim_debug(DEBUG_EXP, dptr,
                 "ec_iocl DC ERROR chan_status[%04x] %04x\n", chan, chp->chan_status);
             return 1;                           /* error return */
         }
     }
-
-//    if (chp->ccw_cmd == EC_READ)                /* Force SLI on READ */
- //        chp->ccw_flags |= FLAG_SLI;
 
     chp->chan_byte = BUFF_BUSY;                 /* busy & no bytes transferred yet */
 
@@ -543,12 +603,14 @@ loop:
         uptr = chp->unitptr;                    /* get the unit ptr */
         if (dibp == 0 || uptr == 0) {
             chp->chan_status |= STATUS_PCHK;    /* program check if it is */
+            sim_debug(DEBUG_EXP, dptr,
+                "ec_iocl bad dibp or uptr chan_status[%04x] %04x\n", chan, chp->chan_status);
             return 1;                           /* if none, error */
         }
 
         sim_debug(DEBUG_XIO, dptr,
             "ec_iocl @%06x before start_cmd chan %04x status %04x count %04x SNS %08x\n",
-            chp->chan_caw, chan, chp->chan_status, chp->ccw_count, uptr->u5);
+            chp->chan_caw, chan, chp->chan_status, chp->ccw_count, uptr->SNS);
 
         /* call the device startcmd function to process the current command */
         /* just replace device status bits */
@@ -557,8 +619,8 @@ loop:
         chp->chan_info &= ~INFO_SIOCD;          /* show not first IOCD in channel prog */
 
         sim_debug(DEBUG_XIO, dptr,
-            "ec_iocl @%06x after start_cmd chan %04x status %08x count %04x\n",
-            chp->chan_caw, chan, chp->chan_status, chp->ccw_count);
+            "ec_iocl @%06x after start_cmd chsa %04x status %08x count %04x SNS %08x\n",
+            chp->chan_caw, chsa, chp->chan_status, chp->ccw_count, uptr->SNS);
 
         /* see if bad status */
         if (chp->chan_status & (STATUS_ATTN|STATUS_ERROR)) {
@@ -578,6 +640,7 @@ loop:
                 sim_debug(DEBUG_EXP, dptr,
                     "ec_iocl continue wait chsa %04x status %08x\n",
                     chp->chan_dev, chp->chan_status);
+                chp->chan_qwait = QWAIT;        /* run 0 instructions before starting iocl */
             }
         } else
 
@@ -595,32 +658,54 @@ loop:
     /* the device processor returned OK (0), so wait for I/O to complete */
     /* nothing happening, so return */
     sim_debug(DEBUG_XIO, dptr,
-        "ec_iocl @%06x return, chan %04x status %04x count %04x\n",
-        chp->chan_caw, chan, chp->chan_status, chp->ccw_count);
+        "ec_iocl @%06x return, chsa %04x status %04x count %04x\n",
+        chp->chan_caw, chsa, chp->chan_status, chp->ccw_count);
     return 0;                                   /* good return */
 }
 
+/* start an ethernet operation */
+t_stat ec_preio(UNIT *uptr, uint16 chan) {
+    DEVICE      *dptr = get_dev(uptr);
+    int         unit = (uptr - dptr->units);
+    uint16      chsa = GET_UADDR(uptr->CMD);
+
+    sim_debug(DEBUG_CMD, dptr, "ec_preio CMD %08x unit %02x chsa %04x\n",
+        uptr->CMD, unit, chsa);
+    if ((uptr->CMD & EC_CMDMSK) != 0) {         /* just return if busy */
+        sim_debug(DEBUG_CMD, dptr,
+            "ec_preio unit %02x chsa %04x BUSY\n", unit, chsa);
+        return SNS_BSY;
+    }
+
+    sim_debug(DEBUG_CMD, dptr, "ec_preio CMD %08x unit %02x chsa %04x OK\n",
+        uptr->CMD, unit, chsa);
+    return SCPE_OK;                             /* good to go */
+}
 
 /* Start ethernet command */
-uint16 ec_startcmd(UNIT *uptr, uint16 chan,  uint8 cmd)
+t_stat ec_startcmd(UNIT *uptr, uint16 chan,  uint8 cmd)
 {
     DEVICE      *dptr = get_dev(uptr);
     uint16      chsa = GET_UADDR(uptr->CMD);
-    CHANP       *chp = find_chanp_ptr(chsa);   /* find the chanp pointer */
+    CHANP       *chp = find_chanp_ptr(chsa);    /* find the chanp pointer */
 
     sim_debug(DEBUG_CMD, dptr,
         "ec_startcmd chsa %04x unit %d cmd %02x CMD %08x\n",
         chsa, (int)(uptr - ec_unit), cmd, uptr->CMD);
-    if ((uptr->CMD & 0xff) != 0) {          /* if any status info, we are busy */
+    if ((uptr->CMD & 0xff) != 0) {              /* if any status info, we are busy */
         sim_debug(DEBUG_CMD, dptr, "ec_startcmd busy\n");
         return SNS_BSY;
     }
 
+    uptr->CMD &= LMASK;                         /* remove old status bits & cmd */
     /* Unit is online, so process a command */
     switch (cmd) {
     case EC_WRITE:                              /* Write command 0x01 */
         uptr->CMD |= cmd|EC_BUSY;               /* save cmd */
-        sim_activate(uptr, 5000);               /* start things off */
+// This works most of the time & stops at test 30 with no len errors
+//*RC*/ sim_activate(uptr, 7000);               /* start things off */
+// This works 
+/*jb*/  sim_activate(uptr, 7500);               /* start things off */
         return 0;
     case EC_INCH:                               /* INCH cmd 0x0 */
         cmd = EC_INCH2;                         /* set dummy INCH cmd 0xf0 */
@@ -633,25 +718,17 @@ uint16 ec_startcmd(UNIT *uptr, uint16 chan,  uint8 cmd)
     case EC_NOP:                                /* NOP 0x03 */
     case EC_LIA:                                /* Load individual address */
     case EC_LGA:                                /* Load Multicast address */
-        uptr->SNS &= 0xffff0000;                /* remove invalid cmd status */
-//      uptr->SNS &= 0x7fff0000;                /* remove invalid cmd status */
-//      uptr->SNS &= ~SNS_CMDREJ;               /* remove CMD reject status */
         /* Fall through */
     case EC_SNS:                                /* Sense 0x04 */
-#if 0
-        /* nop must have non zero count */
-        if (cmd == EC_NOP) {
-            if (chp->ccw_count == 0)
-                return SNS_CHNEND|SNS_DEVEND|STATUS_PCHK;   /* diags want prog check */
-        }
-#endif
         uptr->CMD |= cmd|EC_BUSY;               /* save cmd */
-        sim_activate(uptr, 100);                /* start things off */
+//*RC*/ sim_activate(uptr, 200);                /* start things off */
+/*jb*/  sim_activate(uptr, 150);                /* start things off */
+//old JBsim_activate(uptr, 50);                 /* start things off */
         return 0;
     }
 
     uptr->SNS |= SNS_CMDREJ;
-    sim_debug(DEBUG_CMD, dptr, "ec_startcmd illegal cmd %02x SNS %08x\n",
+    sim_debug(DEBUG_CMD, dptr, "ec_startcmd illegal3 cmd %02x SNS %08x\n",
         cmd, uptr->SNS);
     chp->ccw_count = 0;                         /* diags want zero count */
     return SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK;   /* diags want unit check */
@@ -665,16 +742,22 @@ t_stat ec_rec_srv(UNIT *uptr)
 
     /* If not in loopback try and receive a packet */
     if ((ec_data.conf[0] & 0x40) == 0) {
-        if (eth_read(&ec_data.etherface, &ec_data.rec_buff[ec_data.rec_ptr],
-                   NULL) > 0) {
-            if (((ec_data.rec_ptr + 1) & 0xf) == ec_data.xtr_ptr) {
+        int q = (((ec_data.rec_ptr + 1) & LOOP_MSK) + LOOP_MSK + 1) - ec_data.xtr_ptr;
+        if (q > LOOP_MSK)
+            q -= (LOOP_MSK + 1);
+        if (eth_read(&ec_data.etherface, &ec_data.rec_buff[ec_data.rec_ptr], NULL) > 0) {
+//jb        if (((ec_data.rec_ptr + 1) & LOOP_MSK) == ec_data.xtr_ptr) {
+//jb        if (q > 16) {
+            if (q > 716) {
                 ec_data.drop_cnt++;
+                sim_debug(DEBUG_DETAIL, dptr,
+                    "ec_rec_srv received packet %08x dropped %08x\n",
+                    ec_data.rx_count, ec_data.drop_cnt);
             } else {
-                ec_data.rec_ptr = (ec_data.rec_ptr + 1) & 0xf;
+                ec_data.rec_ptr = (ec_data.rec_ptr + 1) & LOOP_MSK;
                 ec_data.rx_count++;
                 sim_debug(DEBUG_DETAIL, dptr,
-                          "ec_rec_srv received packet %08x\n",
-			 ec_data.rx_count);
+                    "ec_rec_srv received packet %08x\n", ec_data.rx_count);
             }
         }
     }
@@ -691,7 +774,7 @@ t_stat ec_srv(UNIT *uptr)
 {
     uint16          chsa = GET_UADDR(uptr->CMD);
     DEVICE          *dptr = get_dev(uptr);
-    CHANP           *chp = find_chanp_ptr(chsa);        /* get channel prog pointer */
+    CHANP           *chp = find_chanp_ptr(chsa);    /* get channel prog pointer */
     int             cmd = uptr->CMD & EC_CMDMSK;
     uint32          mema;
     int             i;
@@ -703,7 +786,8 @@ t_stat ec_srv(UNIT *uptr)
     struct ec_eth_hdr *hdr;
 
     sim_debug(DEBUG_CMD, dptr,
-        "ec_srv chp %p cmd=%02x chsa %04x count %04x\n", chp, cmd, chsa, chp->ccw_count);
+        "ec_srv chp %p cmd=%02x chsa %04x count %04x SNS %08x\n",
+        chp, cmd, chsa, chp->ccw_count, uptr->SNS);
 
     switch (cmd) {
 //  case EC_INCH:                               /* INCH cmd 0x0 */
@@ -722,7 +806,6 @@ t_stat ec_srv(UNIT *uptr)
             chan_end(chsa, SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
             break;
         }
-#ifndef DIAG_WANTS_COUNT
         for (i=0; i < len; i++) {
             if (chan_read_byte(chsa, &buf[i])) {
                 /* we have error, bail out */
@@ -732,7 +815,6 @@ t_stat ec_srv(UNIT *uptr)
             }
             /* just dump data */
         }
-#endif
         chan_end(chsa, SNS_CHNEND|SNS_DEVEND);
         break;
 
@@ -800,60 +882,106 @@ t_stat ec_srv(UNIT *uptr)
         chan_end(chsa, SNS_CHNEND|SNS_DEVEND);
         break;
 
-    case EC_WRITE:                             /* Write command 0x01 */
+    case EC_WRITE:                              /* Write command 0x01 */
+        /* get queue length */
+        n = (((ec_data.rec_ptr) & LOOP_MSK) + LOOP_MSK + 1) - ec_data.xtr_ptr;
+        if (n >LOOP_MSK)
+            n -= (LOOP_MSK + 1);
+        len = sizeof(struct ec_eth_hdr);        /* header size */
         pirq = 0;
-        uptr->CMD &= LMASK;                   /* remove old status bits & cmd */
+        uptr->CMD &= LMASK;                     /* remove old status bits & cmd */
+        sim_debug(DEBUG_DETAIL, &ec_dev, "ec_srv START %04x write %d %d size=%d cnt %d q %d\n",
+            chsa, ec_data.xtr_ptr, ec_data.rec_ptr, ec_data.conf[9], chp->ccw_count, n);
         hdr = (struct ec_eth_hdr *)(&ec_data.snd_buff.msg[0]);
         pck = (uint8 *)(&ec_data.snd_buff.msg[0]);
+        uptr->SNS &= LMASK;                     /* remove old count */
         switch (GET_MODE(ec_master_uptr->flags)) {
         case 0:
+            /* destination / source / type or len / data 46-1500 */
             for(i = 0; i < sizeof (struct ec_eth_hdr); i++) {
                 if (chan_read_byte(chsa, &pck[i])) {
                     pirq = 1;
                     goto wr_end;
                 }
             }
+            /* set transfer count of user bytes supplied */
+            uptr->SNS |= (sizeof(struct ec_eth_hdr) & 0xffff);  /* set transfer count */
+            sim_debug(DEBUG_DETAIL, &ec_dev,
+                "ec_srv case 0 transmit bytes %d (0x%x) SNS %08x\n",
+                len, len, uptr->SNS);
             break;
         case 1:
         case 2:
+            /* copy destination */
             for(i = 0; i < sizeof (ETH_MAC); i++) {
                 if (chan_read_byte(chsa, &pck[i])) {
                     pirq = 1;
                     goto wr_end;
                 }
             }
+            /* insert source */
             memcpy(&hdr->src, ec_data.mac, sizeof (ETH_MAC));
+            /* copy two byte type  */
             for(i = sizeof(ETH_MAC) * 2; i < sizeof(struct ec_eth_hdr); i++) {
                 if (chan_read_byte(chsa, &pck[i])) {
                     pirq = 1;
                     goto wr_end;
                 }
             }
+            /* set transfer count of user bytes supplied */
+            uptr->SNS |= ((sizeof(struct ec_eth_hdr) - sizeof(ETH_MAC)) & 0xffff);
+            sim_debug(DEBUG_DETAIL, &ec_dev,
+                "ec_srv case 1&2 transmit bytes %d (0x%x) SNS %08x\n",
+                len-6, len-6, uptr->SNS);
             break;
         case 3:
+            /* copy destination */
             for(i = 0; i < sizeof (ETH_MAC); i++) {
                 if (chan_read_byte(chsa, &pck[i])) {
                     pirq = 1;
                     goto wr_end;
                 }
             }
+            /* insert source */
             memcpy(&hdr->src, ec_data.mac, sizeof (ETH_MAC));
+            /* insert type */
             hdr->type = htons(ETHTYPE_IP);
+
+            /* set transfer count of user bytes supplied */
+            uptr->SNS |= ((sizeof(struct ec_eth_hdr) -
+                sizeof(ETH_MAC) - sizeof(int16)) & 0xffff);
+            sim_debug(DEBUG_DETAIL, &ec_dev,
+                "ec_srv case 3 transmit bytes %d (0x%x) SNS %08x\n",
+                len-8, len-8, uptr->SNS);
             break;
         }
+        /* copy in packet data */
         i = sizeof(struct ec_eth_hdr);
         while (chan_read_byte(chsa, &ch) == 0) {
            if (i < ETH_MAX_PACKET) {
                sim_debug(DEBUG_DATA, &ec_dev, "ec_srv data: %06x %02x\n", 
-                         chp->ccw_addr, ch);
+                   chp->ccw_addr, ch);
                pck[i] = ch;
            }
            i++;
+           uptr->SNS++;                         /* set count */
         }
 wr_end:
         ec_data.snd_buff.len = i;
         ec_packet_debug(&ec_data, "send", &ec_data.snd_buff);
+        sim_debug(DEBUG_DETAIL, &ec_dev,
+            "ec_srv @wr_end counts i %04x SNS %04x\n", i, uptr->SNS);
 
+        /* make sure packet is minimum size for mode 1,2 & 3 */
+        if ((ec_data.snd_buff.len < ec_data.conf[9]) &&
+            GET_MODE(ec_master_uptr->flags)) {
+            /* Pad the packet */
+            while(i < ETH_MIN_PACKET) {
+               ec_data.snd_buff.len++;
+               pck[i++] = 0;
+            }
+        }
+#ifdef NOTHERE
         /* see if too few bytes */
         if (ec_data.snd_buff.len < ec_data.conf[9]) {
             sim_debug(DEBUG_DETAIL, &ec_dev,
@@ -861,44 +989,57 @@ wr_end:
             /* diags wants prog check instead of unit check */
             pirq = 1;
         }
+#endif
         /* see if too many bytes, did not get channel end before packet filled */
         if (ec_data.snd_buff.len > ETH_MAX_PACKET) {
             sim_debug(DEBUG_DETAIL, &ec_dev,
                 "ec_srv WRITE error user 2manybytes %0x\n", chp->ccw_count);
-            /* diags wants prog check instead of unit check */
+            /* diags wants prog check instead of length check test 4E */
             chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_PCHK);
             break;
         }
 
+/*jb*/  ec_data.tx_count++;
         if ((ec_data.conf[0] & 0x40) != 0) {
-            if (((ec_data.rec_ptr + 1) & 0xf) == ec_data.xtr_ptr) {
+            int q = (((ec_data.rec_ptr + 1) & LOOP_MSK) + LOOP_MSK + 1) - ec_data.xtr_ptr;
+            if (q >LOOP_MSK)
+                q -= (LOOP_MSK + 1);
+//jb        if (((ec_data.rec_ptr + 1) & LOOP_MSK) == ec_data.xtr_ptr) {
+//jb        if (q > 16) {
+            if (q > 716) {
                 ec_data.drop_cnt++;
+                sim_debug(DEBUG_DETAIL, &ec_dev, "ec_srv write packet dropped %d q %d\n",
+                    ec_data.drop_cnt, q);
             } else {
                 memcpy(&ec_data.rec_buff[ec_data.rec_ptr],
                   &ec_data.snd_buff, sizeof(ETH_PACK));
-                sim_debug(DEBUG_DETAIL, &ec_dev, "ec_srv queued %d\n",ec_data.rec_ptr);
-                ec_data.rec_ptr = (ec_data.rec_ptr + 1) & 0xf;
-                ec_data.rx_count++;
-                ec_data.tx_count++;
+                ec_data.rec_ptr = (ec_data.rec_ptr + 1) & LOOP_MSK;
+                sim_debug(DEBUG_DETAIL, &ec_dev, "ec_srv write rec queued %d xtr %d queue %04x\n",
+                    ec_data.rec_ptr, ec_data.xtr_ptr, q);
+//jb            ec_data.rx_count++;
+//jb            ec_data.tx_count++;
             }
         }
 
-        sim_debug(DEBUG_DETAIL, &ec_dev,
-               "ec_srv sent packet %d bytes count=%08x\n",
-		ec_data.snd_buff.len, ec_data.tx_count);
         if ((ec_data.conf[0] & 0x40) == 0) {
+#ifdef NOTHERE
             /* Pad the packet */
             while(i < ETH_MIN_PACKET) {
                ec_data.snd_buff.len++;
                pck[i++] = 0;
             }
+#endif
             if (eth_write(&ec_data.etherface, &ec_data.snd_buff, NULL) != SCPE_OK) {
-                sim_debug(DEBUG_DETAIL, &ec_dev, "ec_srv short packet %d\n",i);
+                sim_debug(DEBUG_DETAIL, &ec_dev, "ec_srv short packet %d\n", i);
                 /* diags wants prog check instead of unit check */
                 pirq = 1;
-                ec_data.tx_count++;
+//jb            ec_data.tx_count++;
              }
         }
+        sim_debug(DEBUG_DETAIL, &ec_dev,
+            "ec_srv sent packet %d bytes tx_count=%08x SNS %08x\n",
+            ec_data.snd_buff.len, ec_data.tx_count, uptr->SNS);
+
         if (pirq)
             chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_PCHK);
         else {
@@ -909,129 +1050,168 @@ wr_end:
     case EC_READ:                               /* Read command 0x02 */
         /* If no data to receive wait for some more */
         if (ec_data.xtr_ptr == ec_data.rec_ptr) {
-            sim_clock_coschedule(uptr, 1000);   /* continue poll */
+            sim_debug(DEBUG_DETAIL, &ec_dev, "ec_srv WAIT %04x read %d %d size=%d cnt %d\n",
+                chsa, ec_data.xtr_ptr, ec_data.rec_ptr, ec_data.conf[9], chp->ccw_count);
+//jb        sim_clock_coschedule(uptr, 500);    /* continue poll */
+//jb        sim_clock_coschedule(uptr, 511);    /* continue poll */
+            sim_activate(uptr, 511);            /* continue poll */
             return SCPE_OK;
         }
+        /* get queue length */
+        n = (((ec_data.rec_ptr) & LOOP_MSK) + LOOP_MSK + 1) - ec_data.xtr_ptr;
+        if (n >LOOP_MSK)
+            n -= (LOOP_MSK + 1);
         pirq = 0;
-        sim_debug(DEBUG_DETAIL, &ec_dev, "ec_srv read %d %d size=%d\n", ec_data.xtr_ptr,
-                         ec_data.rec_ptr, ec_data.conf[9]);
+        sim_debug(DEBUG_DETAIL, &ec_dev, "ec_srv START %04x read %d %d size=%d cnt %d q %d\n",
+            chsa, ec_data.xtr_ptr, ec_data.rec_ptr, ec_data.conf[9], chp->ccw_count, n);
         uptr->CMD &= LMASK;                     /* remove old status bits & cmd */
+
         /* Read must be word bounded */
         if (chp->ccw_addr & 0x3) { 
             sim_debug(DEBUG_EXP, dptr,
-                "ec_iocl iocd bad address caw %06x ccw %06x\n",
+                "ec_srv iocd bad address caw %06x ccw %06x\n",
                 chp->chan_caw, chp->ccw_addr);
-            ec_data.xtr_ptr = (ec_data.xtr_ptr + 1) & 0xf;
-//            chp->ccw_flags &= ~FLAG_SLI;
+            ec_data.xtr_ptr = (ec_data.xtr_ptr + 1) & LOOP_MSK;
             chp->ccw_count = 0;
             chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_LENGTH|STATUS_PCHK);
             break;
         }
 
+        uptr->SNS &= LMASK;                     /* remove old count */
         ec_master_uptr->SNS |= SNS_RCV_RDY;
         ec_packet_debug(&ec_data, "recv", &ec_data.rec_buff[ec_data.xtr_ptr]);
         pck = (uint8 *)(&ec_data.rec_buff[ec_data.xtr_ptr].msg[0]);
         len = (int)(ec_data.rec_buff[ec_data.xtr_ptr].len);
+        n = sizeof(struct ec_eth_hdr);
+#ifdef NOTHERE
         if (len < ec_data.conf[9]) {
-           sim_debug(DEBUG_DETAIL, &ec_dev, "ec_srv short read size %x %x\n",chp->ccw_count, ec_data.conf[9]);
-           ec_data.xtr_ptr = (ec_data.xtr_ptr + 1) & 0xf;
-           chp->ccw_count = 0;
-           /* diags wants prog check instead of unit check */
-           chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_PCHK);
-           break;
+            sim_debug(DEBUG_DETAIL, &ec_dev, "ec_srv READ error short read len %x size %x %x\n",
+                len, chp->ccw_count, ec_data.conf[9]);
+            ec_data.xtr_ptr = (ec_data.xtr_ptr + 1) & LOOP_MSK;
+            chp->ccw_count = 0;
+            /* diags wants prog check instead of unit check test 4F */
+//jb        chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_PCHK);
+            chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_LENGTH);
+            break;
         }
+#endif
         switch (GET_MODE(ec_master_uptr->flags)) {
         case 0:
+            /* destination / source / type or len */
             for(i = 0; i < sizeof (struct ec_eth_hdr); i++) {
                 if (chan_write_byte(chsa, &pck[i])) {
                     pirq = 1;
                     break;
                 }
             }
+            uptr->SNS |= (len & 0xffff);        /* set transfer count */
+            sim_debug(DEBUG_DETAIL, &ec_dev,
+                "ec_srv case 0 received bytes %d (0x%x) SNS %08x\n",
+                len, len, uptr->SNS);
             break;
         case 1:
         case 2:
+            /* copy destination */
             for(i = 0; i < sizeof (ETH_MAC); i++) {
                 if (chan_write_byte(chsa, &pck[i])) {
                     pirq = 1;
                     break;
                 }
             }
+            /* insert length byte 1 */
             ch = (len >> 8) & 0xff;
             if (chan_write_byte(chsa, &ch)) {
                 pirq = 1;
                 break;
             }
+            /* insert length byte 2 */
             ch = len & 0xff;
             if (chan_write_byte(chsa, &ch)) {
                 pirq = 1;
                 break;
             }
+            /* copy in source / type or len */
             for(; i < sizeof(struct ec_eth_hdr); i++) {
                 if (chan_write_byte(chsa, &pck[i])) {
                     pirq = 1;
                     break;
                 }
             }
+            uptr->SNS |= ((len + 2) & 0xffff);  /* set transfer count */
+            sim_debug(DEBUG_DETAIL, &ec_dev,
+                "ec_srv case 1&2 received bytes %d (0x%x) SNS %08x\n",
+                len+2, len+2, uptr->SNS);
             break;
         case 3:
+            /* copy destination */
             for(i = 0; i < sizeof (ETH_MAC); i++) {
                 if (chan_write_byte(chsa, &pck[i])) {
                     pirq = 1;
                     break;
                 }
             }
+            /* insert length byte 1 */
             ch = (len >> 8) & 0xff;
             if (chan_write_byte(chsa, &ch)) {
                 pirq = 1;
                 break;
             }
+            /* insert length byte 2 */
             ch = len & 0xff;
             if (chan_write_byte(chsa, &ch)) {
                 pirq = 1;
                 break;
             }
+            /* copy in source */
             for(; i < sizeof(ETH_MAC) * 2; i++) {
                 if (chan_write_byte(chsa, &pck[i])) {
                     pirq = 1;
                     break;
                 }
             }
+            /* insert length byte 1 */
             ch = (len >> 8) & 0xff;
             if (chan_write_byte(chsa, &ch)) {
                 pirq = 1;
                 break;
             }
+            /* insert length byte 2 */
             ch = len & 0xff;
             if (chan_write_byte(chsa, &ch)) {
                 pirq = 1;
                 break;
             }
+//bad       n += 2;                             /* add 2 bytes to header */
+            uptr->SNS |= ((len + 4) & 0xffff);  /* set transfer count */
+            sim_debug(DEBUG_DETAIL, &ec_dev,
+                "ec_srv case 3 received bytes %d (0x%x) SNS %08x\n",
+                len+4, len+4, uptr->SNS);
             break;
         }
-        for(i = sizeof(struct ec_eth_hdr); i < len; i++) {
-           if (chan_write_byte(chsa, &pck[i])) {
-//               if (len < ec_data.conf[9]) {
-//                    sim_debug(DEBUG_DETAIL, &ec_dev, "ec_srv short read size %x %x %x\n",chp->ccw_count, i, ec_data.conf[9]);
-//                    /* diags wants prog check instead of unit check */
-//                    pirq = 1;
- //               }
-                ec_data.xtr_ptr = (ec_data.xtr_ptr + 1) & 0xf;
+//      for(i = sizeof(struct ec_eth_hdr); i < len; i++) {
+        for(i = n; i < len; i++) {
+            if (chan_write_byte(chsa, &pck[i])) {
+                /* we read less than or exact bytes, good to go */
+                ec_data.xtr_ptr = (ec_data.xtr_ptr + 1) & LOOP_MSK;
                 ec_data.rx_count++;
                 sim_debug(DEBUG_DETAIL, &ec_dev,
-                         "ec_srv received bytes %d of %d count=%08x\n" ,i,
-                            len, ec_data.rx_count);
+                    "ec_srv received bytes %d of %d rx_count=%08x conf %x\n",
+                    i, len, ec_data.rx_count, ec_data.conf[9]);
                 chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_LENGTH);
                 return SCPE_OK;
            }
         }
+        /* we have some bytes left, set count mismatch */
         chp->ccw_flags |= FLAG_SLI;
-//        chp->ccw_cmd = 0;    /* This is to kill SLI indicator */
-        ec_data.xtr_ptr = (ec_data.xtr_ptr + 1) & 0xf;
+        ec_data.xtr_ptr = (ec_data.xtr_ptr + 1) & LOOP_MSK;
+/*jb*/  ec_data.rx_count++;
         sim_debug(DEBUG_DETAIL, &ec_dev,
-               "ec_srv received bytes %d count=%08x\n" ,len, ec_data.rx_count);
+           "ec_srv received bytes %d (0x%x) rx_count=%08x conf %02x SNS %08x\n",
+           len, len, ec_data.rx_count, ec_data.conf[9], uptr->SNS);
         if (pirq)
-            chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_PCHK);
+            /* diag want incorrect length error */
+//jb        chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_PCHK);
+            chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_LENGTH);
         else
             chan_end(chsa, SNS_CHNEND|SNS_DEVEND);
         break;
@@ -1052,10 +1232,11 @@ wr_end:
         chan_end(chsa, SNS_CHNEND|SNS_DEVEND);
         break;
 
-    case EC_STATS:                             /* Read Statistics */
+    case EC_STATS:                              /* Read Statistics */
         ch = 0;
         /* First 5 words are always zero since these errors are not supported */
-        uptr->CMD &= LMASK;                    /* remove old status bits & cmd */
+        uptr->CMD &= LMASK;                     /* remove old status bits & cmd */
+        sim_debug(DEBUG_DETAIL, dptr, "ec_srv stats drop_count %08x\n", ec_data.drop_cnt);
         for (i = 0; i < STAT_LEN * 2; i++) {
             if (i == 6) 
                ch = (ec_data.drop_cnt >> 8) & 0xff;
@@ -1088,8 +1269,8 @@ wr_end:
         chan_end(chsa, SNS_CHNEND|SNS_DEVEND);
         break;
 
-    case EC_CSTATS:                         /* Clear software counters */
-        uptr->CMD &= LMASK;                 /* remove old status bits & cmd */
+    case EC_CSTATS:                             /* Clear software counters */
+        uptr->CMD &= LMASK;                     /* remove old status bits & cmd */
         ec_data.rx_count = ec_data.tx_count = 0;
         (void)chan_read_byte(chsa, &ch);
         sim_debug(DEBUG_CMD, dptr,
@@ -1098,24 +1279,24 @@ wr_end:
         chan_end(chsa, SNS_CHNEND|SNS_DEVEND);
         break;
 
-    case EC_NOP:                            /* NOP 0x03 */
-        uptr->CMD &= LMASK;                 /* remove old status bits & cmd */
+    case EC_NOP:                                /* NOP 0x03 */
+        uptr->CMD &= LMASK;                     /* remove old status bits & cmd */
         sim_debug(DEBUG_CMD, dptr,
             "ec_srv cmd NOP chsa %04x count %04x completed\n",
             chsa, chp->ccw_count);
         /* diags want the count to be returned zero */
-        chp->ccw_count = 0;                 /* NOP command count */
+        chp->ccw_count = 0;                     /* NOP command count */
         chan_end(chsa, SNS_CHNEND|SNS_DEVEND);  /* return OK */
         break;
 
-    case EC_SNS:                            /* 0x4 */
+    case EC_SNS:                                /* 0x4 */
         sim_debug(DEBUG_CMD, dptr,
             "ec_startcmd CMD sense cnt %02x\n", chp->ccw_count);
-        uptr->CMD &= LMASK;                 /* remove old status bits & cmd */
+        uptr->CMD &= LMASK;                     /* remove old status bits & cmd */
 
         /* diags want incorrect length or prog check */
         if (chp->ccw_count < 0x04) {
-            chp->ccw_count = 0;             /* zero command count */
+            chp->ccw_count = 0;                 /* zero command count */
             if ((chp->ccw_flags & FLAG_SLI) == 0) {
                 /* diag wants incorrect length */
                 chan_end(chsa, SNS_CHNEND|SNS_DEVEND|STATUS_LENGTH);
@@ -1123,11 +1304,10 @@ wr_end:
             }
         }
 
-        len = ec_data.rec_buff[ec_data.xtr_ptr].len;
-//        if (ec_data.xtr_ptr == ec_data.rec_ptr)
- //           len = 0;
-        sim_debug(DEBUG_DETAIL, &ec_dev, "ec_srv SNS %d %d\n", ec_data.xtr_ptr,
-                         ec_data.rec_ptr);
+//jb    len = ec_data.rec_buff[ec_data.xtr_ptr].len;
+        len = uptr->SNS & 0xffff;
+        sim_debug(DEBUG_DETAIL, &ec_dev, "ec_srv SNS len %d xt %d rd %d\n",
+           len, ec_data.xtr_ptr, ec_data.rec_ptr);
         ch = (uptr->SNS >> 24) & 0xfc;
         ch |= GET_MODE(ec_master_uptr->flags);
         sim_debug(DEBUG_DETAIL, dptr, "ec_srv sense b0 1 %02x\n", ch);
@@ -1154,19 +1334,15 @@ wr_end:
             break;
         }
         uptr->SNS &= ~(SNS_CMDREJ|SNS_EQUCHK);  /* clear old status */
-
+/*jb*/  uptr->SNS &= 0xffff0000;                /* clear last count */
         chan_end(chsa, SNS_CHNEND|SNS_DEVEND);  /* done */
         break;
 
     default:
-#ifdef ALLOW_0_CMD
         sim_debug(DEBUG_CMD, dptr, "invalid command %02x\n", cmd);
         uptr->SNS |= SNS_CMDREJ;
-        uptr->CMD &= LMASK;                   /* remove old status bits & cmd */
+        uptr->CMD &= LMASK;                     /* remove old status bits & cmd */
         chan_end(chsa, SNS_CHNEND|SNS_DEVEND|SNS_UNITCHK);
-#else
-        sim_debug(DEBUG_CMD, dptr, "for testing, allow unknown command %02x\n", cmd);
-#endif
     }
     sim_debug(DEBUG_DETAIL, dptr,
         "ec_srv done cmd=%02x chsa %04x count %04x\n", cmd, chsa, chp->ccw_count);
@@ -1174,7 +1350,7 @@ wr_end:
 }
 
 /* Handle haltio transfers for ethernet */
-uint16  ec_haltio(UNIT *uptr) {
+t_stat  ec_haltio(UNIT *uptr) {
     uint16      chsa = GET_UADDR(uptr->CMD);
     DEVICE      *dptr = get_dev(uptr);
     int         cmd = uptr->CMD & EC_CMDMSK;
@@ -1186,26 +1362,27 @@ uint16  ec_haltio(UNIT *uptr) {
     /* UTX wants SLI bit, but no unit exception */
     /* status must not have an error bit set */
     /* otherwise, UTX will panic with "bad status" */
-    if ((uptr->CMD & EC_CMDMSK) != 0) {    /* is unit busy */
+    if ((uptr->CMD & EC_CMDMSK) != 0) {         /* is unit busy */
         sim_debug(DEBUG_CMD, dptr,
             "ec_haltio HIO chsa %04x cmd = %02x ccw_count %02x\n", chsa, cmd, chp->ccw_count);
         // stop any I/O and post status and return error status */
-        chp->chan_byte = BUFF_EMPTY;        /* there is no data to read/store */
-        chp->ccw_count = 0;                 /* zero the count */
-        chp->ccw_flags &= ~(FLAG_DC|FLAG_CC);/* stop any chaining */
-        uptr->CMD &= LMASK;                 /* make non-busy */
-        uptr->SNS = SNS_RCV_RDY;            /* status is online & ready */
-        sim_cancel(uptr);                   /* clear the input timer */
+        chp->ccw_count = 0;                     /* zero the count */
+        chp->ccw_flags &= ~(FLAG_DC|FLAG_CC);   /* stop any chaining */
+        uptr->CMD &= LMASK;                     /* make non-busy */
+        uptr->SNS = SNS_RCV_RDY;                /* status is online & ready */
+        if (chsa & 0x0f)                        /* no cancel for 0 */
+            sim_cancel(uptr);                   /* clear the output timer */
         sim_debug(DEBUG_CMD, dptr,
             "ec_haltio HIO I/O stop chsa %04x cmd = %02x\n", chsa, cmd);
+        /* No unit exception status for ethernet */
         chan_end(chsa, SNS_CHNEND|SNS_DEVEND);  /* force end */
         return SCPE_IOERR;
     }
-    uptr->CMD &= LMASK;                     /* make non-busy */
-    uptr->SNS = SNS_RCV_RDY;                /* status is online & ready */
+    uptr->CMD &= LMASK;                         /* make non-busy */
+    uptr->SNS = SNS_RCV_RDY;                    /* status is online & ready */
     sim_debug(DEBUG_CMD, dptr,
         "ec_haltio HIO I/O not busy chsa %04x cmd = %02x\n", chsa, cmd);
-    return SCPE_OK;                         /* not busy */
+    return SCPE_OK;                             /* not busy */
 }
 
 /* initialize the ethernet */
@@ -1215,6 +1392,7 @@ void ec_ini(UNIT *uptr, t_bool f)
 
     uptr->CMD &= LMASK;                         /* remove old status bits & cmd */
     uptr->SNS = 0;                              /* save mode value */
+//  uptr->SNS = SNS_RCV_RDY;                    /* status is online & ready */
     memset(&ec_data.conf[0], 0, sizeof(ec_data.conf));
     ec_data.macs_n = 0;
     ec_data.tx_count = 0;
@@ -1223,12 +1401,50 @@ void ec_ini(UNIT *uptr, t_bool f)
     ec_data.xtr_ptr = 0;
     ec_data.drop_cnt = 0;
     ec_data.amc = 0;
-    if (ec_master_uptr->flags & UNIT_ATT)
+    if (ec_master_uptr->flags & UNIT_ATT) {
         /* multicast on means promiscous is too */
         eth_filter (&ec_data.etherface, ec_data.macs_n + 2, ec_data.macs,
                     ec_data.amc, ec_data.macs[0][0] & 1);
+        sim_debug(DEBUG_EXP, dptr,
+            "EC init device %s is attached on unit EC%04X\n",
+            dptr->name, GET_UADDR(uptr->CMD));
+    } else {
+        sim_debug(DEBUG_EXP, dptr,
+            "EC init device %s not attached on unit EC%04X\n",
+            dptr->name, GET_UADDR(uptr->CMD));
+    }
+}
+
+/* handle reset controller cmds for Ethernet */
+t_stat      ec_rsctrl(UNIT *uptr) {
+    DEVICE  *dptr = get_dev(uptr);
+    uint16  chsa = GET_UADDR(uptr->CMD);
+    int     cmd = uptr->CMD & EC_CMDMSK;
+
     sim_debug(DEBUG_EXP, dptr,
-        "EC init device %s on unit EC%04X\n", dptr->name, GET_UADDR(uptr->CMD));
+        "ec_rsctlr chsa %04x cmd = %02x\n", chsa, cmd);
+//    memset(&ec_data.conf[0], 0, sizeof(ec_data.conf));
+    ec_data.tx_count = 0;
+    ec_data.rx_count = 0;
+    ec_data.drop_cnt = 0;
+    ec_data.rec_ptr = 0;                        /* clear queue */
+    ec_data.xtr_ptr = 0;                        /* clear queue */
+//  uptr->SNS = SNS_RCV_RDY;                    /* status is online & ready */
+    return SCPE_OK;
+}
+
+/* handle reset channel cmds for Ethernet */
+t_stat  ec_rschnlio(UNIT *uptr) {
+    DEVICE  *dptr = get_dev(uptr);
+    uint16  chsa = GET_UADDR(uptr->CMD);
+    int     cmd = uptr->CMD & EC_CMDMSK;
+
+    sim_debug(DEBUG_EXP, dptr,
+        "ec_rschnl chsa %04x cmd = %02x\n", chsa, cmd);
+    ec_ini(uptr, 0);                            /* reset the unit */
+//  uptr->SNS = SNS_RCV_RDY;                    /* status is online & ready */
+    /* the interrupt level will be reset in sel32_chan.c code */
+    return SCPE_OK;
 }
 
 static char *
@@ -1243,9 +1459,9 @@ ipv4_inet_ntoa(struct in_addr ip)
                             (ip.s_addr >> 24) & 0xFF);
    else
        sprintf (str, "%d.%d.%d.%d", (ip.s_addr >> 24) & 0xFF,
-                              (ip.s_addr >> 16) & 0xFF,
-                              (ip.s_addr >> 8) & 0xFF,
-                               ip.s_addr & 0xFF);
+                            (ip.s_addr >> 16) & 0xFF,
+                            (ip.s_addr >> 8) & 0xFF,
+                             ip.s_addr & 0xFF);
    return str;
 }
 
@@ -1282,18 +1498,18 @@ void ec_packet_debug(struct ec_device *ec, const char *action,
             {NULL, 0}
         };
     static const char *icmp_types[] = {
-        "Echo Reply",                                   // Type 0
+        "Echo Reply",                           // Type 0
         "Type 1 - Unassigned",
         "Type 2 - Unassigned",
-        "Destination Unreachable",                      // Type 3
-        "Source Quench (Deprecated)",                   // Type 4
-        "Redirect",                                     // Type 5
+        "Destination Unreachable",              // Type 3
+        "Source Quench (Deprecated)",           // Type 4
+        "Redirect",                             // Type 5
         "Type 6 - Alternate Host Address (Deprecated)",
         "Type 7 - Unassigned",
-        "Echo Request",                                 // Type 8
-        "Router Advertisement",                         // Type 9
-        "Router Selection",                             // Type 10
-        "Time Exceeded",                                // Type 11
+        "Echo Request",                         // Type 8
+        "Router Advertisement",                 // Type 9
+        "Router Selection",                     // Type 10
+        "Time Exceeded",                        // Type 11
         "Type 12 - Parameter Problem",
         "Type 13 - Timestamp",
         "Type 14 - Timestamp Reply",
@@ -1392,13 +1608,15 @@ void ec_packet_debug(struct ec_device *ec, const char *action,
             sim_debug(DEBUG_TCP, &ec_dev, "%s %s%s %d byte packet from %s:%s to %s:%s\n", action,
                         flags, *flags ? ":" : "", (int)len, src_ip, src_port, dst_ip, dst_port);
             if (len && (ec_dev.dctrl & DEBUG_TCP))
-                sim_data_trace(&ec_dev, ec_unit, payload + 4 * (ntohs(tcp->flags) >> 12), "", len, "", DEBUG_DATA);
+                sim_data_trace(&ec_dev, ec_unit, payload +
+                    4 * (ntohs(tcp->flags) >> 12), "", len, "", DEBUG_DATA);
             break;
         case ICMP_PROTO:
             icmp = (struct icmp *)payload;
             len = ntohs(ip->ip_len) - (ip->ip_v_hl & 0xf) * 4;
             sim_debug(DEBUG_ICMP, &ec_dev, "%s %s %d byte packet from %s to %s\n", action,
-                (icmp->type < sizeof(icmp_types)/sizeof(icmp_types[0])) ? icmp_types[icmp->type] : "", (int)len, src_ip, dst_ip);
+                (icmp->type < sizeof(icmp_types)/sizeof(icmp_types[0])) ?
+                    icmp_types[icmp->type] : "", (int)len, src_ip, dst_ip);
             if (len && (ec_dev.dctrl & DEBUG_ICMP))
                 sim_data_trace(&ec_dev, ec_unit, payload + sizeof(struct icmp), "", len, "", DEBUG_DATA);
             break;
@@ -1463,7 +1681,7 @@ t_stat ec_reset (DEVICE *dptr)
             break;
     }
     if (i == 6) {   /* First call to reset? */
-   /* Set a default MAC address in a BBN assigned OID range no longer in use */
+    /* Set a default MAC address in a BBN assigned OID range no longer in use */
         ec_set_mac (dptr->units, 0, "00:00:02:00:00:00/24", NULL);
     }
     memset(&ec_data.conf[0], 0, sizeof(ec_data.conf));
@@ -1502,7 +1720,7 @@ t_stat ec_attach(UNIT* uptr, CONST char* cptr)
         free(tptr);
         return status;
     }
-    eth_mac_fmt(&ec_data.mac, buf);     /* format ethernet mac address */
+    eth_mac_fmt(&ec_data.mac, buf);             /* format ethernet mac address */
     if (SCPE_OK != eth_check_address_conflict (&ec_data.etherface,
                                                  &ec_data.mac)) {
         eth_close(&ec_data.etherface);
@@ -1521,10 +1739,11 @@ t_stat ec_attach(UNIT* uptr, CONST char* cptr)
 
     uptr->filename = tptr;
     uptr->flags |= UNIT_ATT;
-    eth_setcrc(&ec_data.etherface, 0);     /* Enable CRC */
+    eth_setcrc(&ec_data.etherface, 0);          /* Enable CRC */
 
     /* init read queue (first time only) */
     status = ethq_init(&ec_data.ReadQ, 8);
+//JBstatus = ethq_init(&ec_data.ReadQ, 16);     /* try 16 per device */
     if (status != SCPE_OK) {
         eth_close(&ec_data.etherface);
         uptr->filename = NULL;
@@ -1534,16 +1753,12 @@ t_stat ec_attach(UNIT* uptr, CONST char* cptr)
     }
 
     eth_set_async (&ec_data.etherface, 0);
-        
-
     return SCPE_OK;
 }
 
 /* detach device: */
-
 t_stat ec_detach(UNIT* uptr)
 {
-
     if (uptr->flags & UNIT_ATT && (uptr->flags & UNIT_DIS) == 0) {
         eth_close (&ec_data.etherface);
         free(uptr->filename);
@@ -1555,17 +1770,16 @@ t_stat ec_detach(UNIT* uptr)
 
 t_stat ec_help (FILE *st, DEVICE *dptr, UNIT *uptr, int32 flag, const char *cptr)
 {
-fprintf (st, "Ethernet interface\n\n");
-fprintf (st, "The ethernet interfaces to the network. Setting MAC defines default MAC address\n");
-fprint_set_help (st, dptr);
-fprint_show_help (st, dptr);
-eth_attach_help(st, dptr, uptr, flag, cptr);
-return SCPE_OK;
+    fprintf(st, "Ethernet interface\n\n");
+    fprintf(st, "The ethernet interfaces to the network. Setting MAC defines default MAC address\n");
+    fprint_set_help(st, dptr);
+    fprint_show_help(st, dptr);
+    eth_attach_help(st, dptr, uptr, flag, cptr);
+    return SCPE_OK;
 }
 
 const char *ec_description (DEVICE *dptr)
 {
     return "SEL32 8516 Ethernet interface";
 }
-
 #endif

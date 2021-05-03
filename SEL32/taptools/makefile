@@ -32,6 +32,7 @@ PROGS =			\
 	$(ROOT)/mkdiagtape \
 	$(ROOT)/tapdump	\
 	$(ROOT)/tape2disk \
+	$(ROOT)/disk2tap \
 	$(ROOT)/tapscan \
 	$(ROOT)/eomtap \
 	$(ROOT)/volmcopy \
@@ -40,6 +41,7 @@ PROGS =			\
 	$(ROOT)/deblk \
 	$(ROOT)/mpxblk \
 	$(ROOT)/renum \
+	$(ROOT)/tap2disk \
 	$(ROOT)/cutostap \
 	$(ROOT)/small
 
@@ -113,6 +115,12 @@ $B/tape2disk:	$D tape2disk.c
 	@cp $(@F) $B
 	@echo $(@F) installed in $B
 
+$B/disk2tap:	$D disk2tap.c
+	@-$(CC) $(CFLAGS) $(@F).c $(LFLAGS) -o $@
+	@chmod 755 $@
+	@cp $(@F) $B
+	@echo $(@F) installed in $B
+
 $B/tapsca:	$D tapscan.c
 	@-$(CC) $(CFLAGS) $(@F).c $(LFLAGS) -o $@
 	@chmod 755 $@
@@ -162,6 +170,12 @@ $B/renum:	$D renum.c
 	@echo $(@F) installed in $B
 
 $B/cutostap:	$D cutostap.c
+	@-$(CC) $(CFLAGS) $(@F).c $(LFLAGS) -o $@
+	@chmod 755 $@
+	@cp $(@F) $B
+	@echo $(@F) installed in $B
+
+$B/tap2disk:	$D tap2disk.c
 	@-$(CC) $(CFLAGS) $(@F).c $(LFLAGS) -o $@
 	@chmod 755 $@
 	@cp $(@F) $B
